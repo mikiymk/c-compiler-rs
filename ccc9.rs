@@ -5,30 +5,99 @@ fn main() -> Result<(), ()> {
     return Err(());
   }
 
-  let mut re = ReadString::read(&args[1]);
+  let mut token = Token::tokenize(&args[1]).unwrap();
+  let mut _re = ReadString::read(&args[1]);
 
   println!(".intel_syntax noprefix");
   println!(".global main");
   println!("main:");
-  println!("  mov rax, {}", re.to_long());
+  println!("  mov rax, {}", token.expect_num().unwrap());
 
-  while ! re.end() {
-    if re.expect('+') {
-      println!("  add rax, {}", re.to_long());
+  while ! token.at_eof() {
+    if token.expect().stri == "+" {
+      println!("  add rax, {}", token.expect_num().unwrap());
       continue;
     }
 
-    if re.expect('-') {
-      println!("  sub rax, {}", re.to_long());
-      continue;
-    }
-
-    eprintln!("unexpected character: '{}'", re.get_char());
-    return Err(());
+    println!("  sub rax, {}", token.expect_num().unwrap());
   }
 
   println!("  ret");
-  return Ok(());
+  Ok(())
+}
+
+#[derive(Debug)]
+enum TokenKind {
+  RESERVED,
+  NUM(i64),
+}
+
+#[derive(Debug)]
+struct Token {
+  kind : TokenKind,
+  stri : String,
+}
+
+impl Token {
+  fn tokenize(code: &String) -> Result<TokenList, String> {
+    let mut vect = Vec::new();
+    let mut re = ReadString::read(&code);
+
+    while ! re.end() {
+      let c = re.get_char();
+      if c == ' ' {
+        re.skip();
+        continue;
+      }
+      
+      if c == '+' || c == '-' {
+        vect.push(Token::new(TokenKind::RESERVED, c.to_string()));
+        re.skip();
+        continue;
+      }
+
+      if c == '1' || c == '2' || c == '3' || c == '4' || c == '5' ||
+      c == '6' || c == '7' || c == '8' || c == '9' || c == '0' {
+        let lo = re.to_long();
+        vect.push(Token::new(TokenKind::NUM(lo), lo.to_string()));
+        continue;
+      }
+
+      return Err(format!("トークナイズ出来ません。"));
+    }
+    Ok(TokenList{ list: vect })
+  }
+
+  fn new(kind: TokenKind, stri: String) -> Token {
+    Token {
+      kind,
+      stri
+    }
+  }
+}
+
+struct TokenList {
+  list: Vec<Token>,
+}
+
+impl TokenList {
+  fn expect(&mut self) -> Token {
+    self.list.remove(0)
+  }
+
+  fn expect_num(&mut self) -> Result<i64, Token> {
+    use TokenKind::NUM;
+    let token = self.expect();
+    if let NUM(i) = token.kind {
+      Ok(i)
+    } else {
+      Err(token)
+    }
+  }
+
+  fn at_eof(&mut self) -> bool {
+    self.list.len() == 0
+  }
 }
 
 struct ReadString {
@@ -56,13 +125,8 @@ impl ReadString {
     ret
   }
 
-  fn expect(&mut self, c: char) -> bool {
-    if self.strv[self.cur] == c {
-      self.cur += 1;
-      true
-    } else {
-      false
-    }
+  fn skip(&mut self) {
+    self.cur += 1;
   }
 
   fn get_char(&self) -> char {
