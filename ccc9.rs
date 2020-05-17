@@ -80,12 +80,12 @@ impl Node {
   }
 
   fn node_mul(token: &mut TokenList) -> Node {
-    let mut node = Node::node_primary(token);
+    let mut node = Node::node_unary(token);
     loop {
       if token.consume("*") {
-        node = Node::new_binary(NodeKind::Multiply, node, Node::node_primary(token));
+        node = Node::new_binary(NodeKind::Multiply, node, Node::node_unary(token));
       } else if token.consume("/") {
-        node = Node::new_binary(NodeKind::Divide, node, Node::node_primary(token));
+        node = Node::new_binary(NodeKind::Divide, node, Node::node_unary(token));
       } else {
         return node;
       }
@@ -99,6 +99,16 @@ impl Node {
       node
     } else {
       Node::node_number(token)
+    }
+  }
+
+  fn node_unary(token: &mut TokenList) -> Node {
+    if token.consume("+") {
+      Node::node_primary(token)
+    } else if token.consume("-") {
+      Node::new_binary(NodeKind::Subtract, Node::Num(NodeKind::Integer, 0), Node::node_primary(token))
+    } else {
+      Node::node_primary(token)
     }
   }
 
