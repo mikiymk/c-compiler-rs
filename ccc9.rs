@@ -1,29 +1,112 @@
-fn main() -> Result<(), ()> {
+fn main() -> Result<(), String> {
   let args: Vec<String> = std::env::args().collect();
   if args.len() != 2 {
-    eprintln!("引数の個数が正しくありません。");
-    return Err(());
+    return Err("引数の個数が正しくありません。".to_string());
   }
 
-  let mut token = Token::tokenize(&args[1]).unwrap();
-  let mut _re = ReadString::read(&args[1]);
+  match Token::tokenize(&args[1]) {
+    Ok(mut token) => {
+      let node = Node::node_expr(&mut token);
+      assemblize(node);
+      Ok(())
+    },
+    Err(err) => Err(err)
+  }
+}
 
+fn assemblize(node: Node) {
   println!(".intel_syntax noprefix");
   println!(".global main");
   println!("main:");
-  println!("  mov rax, {}", token.expect_num().unwrap());
 
-  while ! token.at_eof() {
-    if token.expect().stri == "+" {
-      println!("  add rax, {}", token.expect_num().unwrap());
-      continue;
+  gen(node);
+
+  println!("  pop rax");
+  println!("  ret");
+}
+
+fn gen(node: Node) {
+  match node {
+    Node::Num(_, i) => {
+      println!("  push {}", i)
+    },
+    Node::BinaryOperator(kind, lhs, rhs) => {
+      gen(*lhs);
+      gen(*rhs);
+      println!("  pop rdi");
+      println!("  pop rax");
+      match kind {
+        NodeKind::Add => println!("  add rax, rdi"),
+        NodeKind::Subtract => println!("  sub rax, rdi"),
+        NodeKind::Multiply => println!("  imul rax, rdi"),
+        NodeKind::Divide => {
+          println!("  cqo");
+          println!("  idiv rdi");
+        },
+        _ => {},
+      }
+      println!("  push rax");
+    },
+  }
+}
+
+enum NodeKind {
+  Add,
+  Subtract,
+  Multiply,
+  Divide,
+  Integer,
+}
+
+enum Node {
+  BinaryOperator(NodeKind, Box<Node>, Box<Node>),
+  Num(NodeKind, i64),
+}
+
+impl Node {
+  fn node_expr(token: &mut TokenList) -> Node {
+    let mut node = Node::node_mul(token);
+    loop {
+      if token.consume("+") {
+        node = Node::new(NodeKind::Add, node, Node::node_mul(token));
+      } else if token.consume("-") {
+        node = Node::new(NodeKind::Subtract, node, Node::node_mul(token));
+      } else {
+        return node;
+      }
     }
-
-    println!("  sub rax, {}", token.expect_num().unwrap());
   }
 
-  println!("  ret");
-  Ok(())
+  fn node_mul(token: &mut TokenList) -> Node {
+    let mut node = Node::node_primary(token);
+    loop {
+      if token.consume("*") {
+        node = Node::new(NodeKind::Multiply, node, Node::node_primary(token));
+      } else if token.consume("/") {
+        node = Node::new(NodeKind::Divide, node, Node::node_primary(token));
+      } else {
+        return node;
+      }
+    }
+  }
+
+  fn node_primary(token: &mut TokenList) -> Node {
+    if token.consume("(") {
+      let node = Node::node_expr(token);
+      token.expect(")");
+      node
+    } else {
+      Node::num(token.expect_num().unwrap())
+    }
+  }
+
+  fn new(kind: NodeKind, lhs: Node, rhs: Node) -> Node {
+    Node::BinaryOperator(kind, Box::new(lhs), Box::new(rhs))
+  }
+
+  fn num(i: i64) -> Node {
+    Node::Num(NodeKind::Integer, i)
+  }
 }
 
 #[derive(Debug)]
@@ -50,7 +133,7 @@ impl Token {
         continue;
       }
       
-      if c == '+' || c == '-' {
+      if c == '+' || c == '-' || c == '*' || c == '/' || c == '(' || c == ')' {
         vect.push(Token::new(TokenKind::RESERVED, c.to_string()));
         re.skip();
         continue;
@@ -77,18 +160,26 @@ impl Token {
 }
 
 struct TokenList {
-  list: Vec<Token>,
+  list : Vec<Token>,
 }
 
 impl TokenList {
-  fn expect(&mut self) -> Token {
-    self.list.remove(0)
+  fn consume(&mut self, stri: &str) -> bool {
+    if !self.at_eof() && self.list[0].stri == stri {
+      self.list.remove(0);
+      true
+    } else {
+      false
+    }
+  }
+
+  fn expect(&mut self, stri: &str) -> bool {
+    !self.at_eof() && self.list.remove(0).stri == stri
   }
 
   fn expect_num(&mut self) -> Result<i64, Token> {
-    use TokenKind::NUM;
-    let token = self.expect();
-    if let NUM(i) = token.kind {
+    let token = self.list.remove(0);
+    if let TokenKind::NUM(i) = token.kind {
       Ok(i)
     } else {
       Err(token)

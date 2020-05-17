@@ -1,6 +1,7 @@
 CFLAGS=-std=c11 -g -static
 
-ccc9: ccc9.c
+ccc9: ccc9.rs
+	rustc ccc9.rs
 
 test: ccc9
 	./test.sh
