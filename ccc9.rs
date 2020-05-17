@@ -4,17 +4,19 @@ fn main() -> Result<(), String> {
     return Err("引数の個数が正しくありません。".to_string());
   }
 
-  match Token::tokenize(&args[1]) {
+  let program = &args[1];
+
+  match Token::tokenize(&program) {
     Ok(mut token) => {
       let node = Node::node_expr(&mut token);
-      assemblize(node);
+      assemblize(&node);
       Ok(())
     },
     Err(err) => Err(err)
   }
 }
 
-fn assemblize(node: Node) {
+fn assemblize(node: &Node) {
   println!(".intel_syntax noprefix");
   println!(".global main");
   println!("main:");
@@ -25,14 +27,14 @@ fn assemblize(node: Node) {
   println!("  ret");
 }
 
-fn gen(node: Node) {
+fn gen(node: &Node) {
   match node {
     Node::Num(_, i) => {
       println!("  push {}", i)
     },
     Node::BinaryOperator(kind, lhs, rhs) => {
-      gen(*lhs);
-      gen(*rhs);
+      gen(&*lhs);
+      gen(&*rhs);
       println!("  pop rdi");
       println!("  pop rax");
       match kind {
@@ -68,9 +70,9 @@ impl Node {
     let mut node = Node::node_mul(token);
     loop {
       if token.consume("+") {
-        node = Node::new(NodeKind::Add, node, Node::node_mul(token));
+        node = Node::new_binary(NodeKind::Add, node, Node::node_mul(token));
       } else if token.consume("-") {
-        node = Node::new(NodeKind::Subtract, node, Node::node_mul(token));
+        node = Node::new_binary(NodeKind::Subtract, node, Node::node_mul(token));
       } else {
         return node;
       }
@@ -81,9 +83,9 @@ impl Node {
     let mut node = Node::node_primary(token);
     loop {
       if token.consume("*") {
-        node = Node::new(NodeKind::Multiply, node, Node::node_primary(token));
+        node = Node::new_binary(NodeKind::Multiply, node, Node::node_primary(token));
       } else if token.consume("/") {
-        node = Node::new(NodeKind::Divide, node, Node::node_primary(token));
+        node = Node::new_binary(NodeKind::Divide, node, Node::node_primary(token));
       } else {
         return node;
       }
@@ -96,16 +98,16 @@ impl Node {
       token.expect(")");
       node
     } else {
-      Node::num(token.expect_num().unwrap())
+      Node::node_number(token)
     }
   }
 
-  fn new(kind: NodeKind, lhs: Node, rhs: Node) -> Node {
-    Node::BinaryOperator(kind, Box::new(lhs), Box::new(rhs))
+  fn node_number(token: &mut TokenList) -> Node {
+    Node::Num(NodeKind::Integer, token.expect_num().unwrap())
   }
 
-  fn num(i: i64) -> Node {
-    Node::Num(NodeKind::Integer, i)
+  fn new_binary(kind: NodeKind, lhs: Node, rhs: Node) -> Node {
+    Node::BinaryOperator(kind, Box::new(lhs), Box::new(rhs))
   }
 }
 
@@ -152,10 +154,7 @@ impl Token {
   }
 
   fn new(kind: TokenKind, stri: String) -> Token {
-    Token {
-      kind,
-      stri
-    }
+    Token { kind, stri }
   }
 }
 
