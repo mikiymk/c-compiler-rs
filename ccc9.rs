@@ -11,8 +11,11 @@ fn main() {
 
     let program = &args[1];
 
+    // eprintln!("{}", program);
     if let Some(mut token) = token::tokenize(&program) {
+        // eprintln!("{:?}", token);
         let node = parse::node(&mut token);
+        // eprintln!("{:?}", node);
         assemble::assemble(&node);
     }
 }

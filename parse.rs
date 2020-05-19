@@ -1,13 +1,16 @@
 use token::TokenList;
 
+#[derive(Debug)]
 pub enum NodeKind {
     Add,
     Subtract,
     Multiply,
     Divide,
     Compare(CompareKind),
+    Assign,
 }
 
+#[derive(Debug)]
 pub enum CompareKind {
     Equal,
     NotEqual,
@@ -15,17 +18,43 @@ pub enum CompareKind {
     LessEqual,
 }
 
+#[derive(Debug)]
 pub enum Node {
+    Statements(Vec<Node>),
     BinaryOperator {
         kind: NodeKind,
         left: Box<Node>,
         right: Box<Node>
     },
     Num(i64),
+    LocalVariable(i64),
 }
 
 pub fn node(token: &mut TokenList) -> Node {
-    equality(token)
+    let mut code = Vec::new();
+    while !token.at_eof() {
+        code.push(statement(token));
+    }
+    Node::Statements(code)
+}
+
+fn statement(token: &mut TokenList) -> Node {
+    let node = expression(token);
+    token.expect(";");
+    node
+}
+
+fn expression(token: &mut TokenList) -> Node {
+    assign(token)
+}
+
+fn assign(token: &mut TokenList) -> Node {
+    let node = equality(token);
+    if token.consume("=") {
+        Node::new_binary(NodeKind::Assign, node, assign(token))
+    } else {
+        node
+    }
 }
 
 fn equality(token: &mut TokenList) -> Node {
@@ -82,16 +111,6 @@ fn mul(token: &mut TokenList) -> Node {
             return node;
         }
     }
-  }
-
-fn primary(token: &mut TokenList) -> Node {
-    if token.consume("(") {
-        let node = node(token);
-        token.expect(")");
-        node
-    } else {
-        number(token)
-    }
 }
 
 fn unary(token: &mut TokenList) -> Node {
@@ -104,8 +123,24 @@ fn unary(token: &mut TokenList) -> Node {
     }
 }
 
+fn primary(token: &mut TokenList) -> Node {
+    if token.consume("(") {
+        let node = expression(token);
+        token.expect(")");
+        node
+    } else if token.consume_ident() {
+        ident(token)
+    } else {
+        number(token)
+    }
+}
+
 fn number(token: &mut TokenList) -> Node {
     Node::Num(token.expect_num().unwrap())
+}
+
+fn ident(token: &mut TokenList) -> Node {
+    Node::LocalVariable(token.expect_ident().unwrap() * 8)
 }
 
 impl Node {

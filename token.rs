@@ -1,8 +1,11 @@
+#[derive(Debug)]
 enum Token {
     RESERVED(String),
+    IDENT(String),
     NUM(i64),
 }
 
+#[derive(Debug)]
 pub struct TokenList {
     list : Vec<Token>,
 }
@@ -18,7 +21,7 @@ pub fn tokenize(code: &String) -> Option<TokenList> {
             ' ' => {
                 cur += 1;
             }
-            '+' | '-' | '*' | '/' | '(' | ')' => {
+            '+' | '-' | '*' | '/' | '(' | ')' | ';' => {
                 vect.push(Token::RESERVED(codev[cur].to_string()));
                 cur += 1;
             }
@@ -37,8 +40,12 @@ pub fn tokenize(code: &String) -> Option<TokenList> {
                     cur += 1;
                 }
             },
+            'a' ..= 'z' => {
+                vect.push(Token::IDENT(codev[cur].to_string()));
+                cur += 1;
+            }
             _ => {
-                eprintln!("トークナイズ出来ません。");
+                error_at(code, cur, "トークナイズ出来ません。");
                 return None;
             }
         }
@@ -52,6 +59,12 @@ fn str_to_long(code: &String, cursor: usize) -> (i64, usize) {
       len += 1
     }
     (code[cursor..len].parse().unwrap(), len)
+}
+
+fn error_at(code: &str, pos: usize, error: &str) {
+    eprintln!("{}", error);
+    eprintln!("{}", code);
+    eprintln!("{}^", " ".repeat(pos));
 }
 
 impl TokenList {
@@ -71,7 +84,7 @@ impl TokenList {
         }
     }
 
-    fn at_eof(&self) -> bool {
+    pub fn at_eof(&self) -> bool {
         self.list.len() == 0
     }
 
@@ -85,6 +98,10 @@ impl TokenList {
         false
     }
 
+    pub fn consume_ident(&self) -> bool {
+        matches!(self.get(), Some(Token::IDENT(_)))
+    }
+
     pub fn expect(&mut self, stri: &str) -> bool {
         if let Token::RESERVED(s) = self.pop().unwrap() {
             stri == s
@@ -94,10 +111,19 @@ impl TokenList {
     }
 
     pub fn expect_num(&mut self) -> Option<i64> {
-        if let Some(Token::NUM(i)) = self.pop() {
-            Some(i)
-        } else {
-            None
+        match self.pop() {
+            Some(Token::NUM(i)) => Some(i),
+            _ => None,
+        }
+    }
+
+    pub fn expect_ident(&mut self) -> Option<i64> {
+        match self.pop() {
+            Some(Token::IDENT(s)) => {
+                let c = s.chars().nth(0).unwrap();
+                Some(c as i64 - 96)
+            },
+            _ => None,
         }
     }
 }
