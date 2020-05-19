@@ -1,6 +1,6 @@
 CFLAGS=-std=c11 -g -static
 
-ccc9: ccc9.rs
+ccc9: ccc9.rs token.rs parse.rs assemble.rs
 	rustc ccc9.rs
 
 test: ccc9
