@@ -11,11 +11,21 @@ fn main() {
 
     let program = &args[1];
 
-    // eprintln!("{}", program);
-    if let Some(mut token) = token::tokenize(&program) {
-        // eprintln!("{:?}", token);
-        let node = parse::node(&mut token);
-        // eprintln!("{:?}", node);
-        assemble::assemble(&node);
+    match token::tokenize(&program) {
+        Ok(mut token) => {
+            eprintln!("{:?}", token);
+            match parse::node(&mut token) {
+                Ok(node) => {
+                    eprintln!("{:?}", node);
+                    assemble::assemble(&node)
+                }
+                Err(e) => {
+                    eprintln!("Parse Error\n{:?}", e)
+                }
+            }
+        }
+        Err(e) => {
+            eprintln!("Tokenize Error\n{:?}", e)
+        }
     }
 }

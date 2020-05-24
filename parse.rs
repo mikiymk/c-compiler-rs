@@ -21,6 +21,7 @@ pub enum CompareKind {
 #[derive(Debug)]
 pub enum Node {
     Statements(Vec<Node>),
+    ReturnStatement(Box<Node>),
     BinaryOperator {
         kind: NodeKind,
         left: Box<Node>,
@@ -30,121 +31,153 @@ pub enum Node {
     LocalVariable(i64),
 }
 
-pub fn node(token: &mut TokenList) -> Node {
+pub struct ParseError;
+
+pub fn node(token: &mut TokenList) -> Result<Node, ParseError> {
     let mut code = Vec::new();
+    let mut vars = Vec::new();
     while !token.at_eof() {
-        code.push(statement(token));
+        code.push(statement(token, &mut vars)?);
     }
-    Node::Statements(code)
+    Ok(Node::Statements(code))
 }
 
-fn statement(token: &mut TokenList) -> Node {
-    let node = expression(token);
-    token.expect(";");
-    node
-}
-
-fn expression(token: &mut TokenList) -> Node {
-    assign(token)
-}
-
-fn assign(token: &mut TokenList) -> Node {
-    let node = equality(token);
-    if token.consume("=") {
-        Node::new_binary(NodeKind::Assign, node, assign(token))
+fn statement(token: &mut TokenList, vars: &mut Vec<String>) -> Result<Node, ParseError> {
+    let node = if token.consume("return") {
+        Node::new_return(expression(token, vars)?)
     } else {
-        node
+        expression(token, vars)?
+    };
+    if token.consume(";") {
+        Ok(node)
+    } else {
+        Err(ParseError)
     }
 }
 
-fn equality(token: &mut TokenList) -> Node {
-    let mut node = relational(token);
+fn expression(token: &mut TokenList, vars: &mut Vec<String>) -> Result<Node, ParseError> {
+    assign(token, vars)
+}
+
+fn assign(token: &mut TokenList, vars: &mut Vec<String>) -> Result<Node, ParseError> {
+    let node = equality(token, vars)?;
+    if token.consume("=") {
+        Ok(Node::new_binary(NodeKind::Assign, node, assign(token, vars)?))
+    } else {
+        Ok(node)
+    }
+}
+
+fn equality(token: &mut TokenList, vars: &mut Vec<String>) -> Result<Node, ParseError> {
+    let mut node = relational(token, vars)?;
     loop {
         if token.consume("==") {
-            node = Node::new_compare(CompareKind::Equal, node, relational(token));
+            node = Node::new_compare(CompareKind::Equal, node, relational(token, vars)?);
         } else if token.consume("!=") {
-            node = Node::new_compare(CompareKind::NotEqual, node, relational(token));
+            node = Node::new_compare(CompareKind::NotEqual, node, relational(token, vars)?);
         } else {
-            return node;
+            return Ok(node);
         }
     }
 }
 
-fn relational(token: &mut TokenList) -> Node {
-    let mut node = add(token);
+fn relational(token: &mut TokenList, vars: &mut Vec<String>) -> Result<Node, ParseError> {
+    let mut node = add(token, vars)?;
     loop {
         if token.consume("<") {
-            node = Node::new_compare(CompareKind::LessThan, node, add(token));
+            node = Node::new_compare(CompareKind::LessThan, node, add(token, vars)?);
         } else if token.consume("<=") {
-            node = Node::new_compare(CompareKind::LessEqual, node, add(token));
+            node = Node::new_compare(CompareKind::LessEqual, node, add(token, vars)?);
         } else if token.consume(">") {
-            node = Node::new_compare(CompareKind::LessThan, add(token), node);
+            node = Node::new_compare(CompareKind::LessThan, add(token, vars)?, node);
         } else if token.consume(">=") {
-            node = Node::new_compare(CompareKind::LessEqual, add(token), node);
+            node = Node::new_compare(CompareKind::LessEqual, add(token, vars)?, node);
         } else {
-            return node;
+            return Ok(node);
         }
     }
 }
 
-fn add(token: &mut TokenList) -> Node {
-    let mut node = mul(token);
+fn add(token: &mut TokenList, vars: &mut Vec<String>) -> Result<Node, ParseError> {
+    let mut node = mul(token, vars)?;
     loop {
         if token.consume("+") {
-            node = Node::new_binary(NodeKind::Add, node, mul(token));
+            node = Node::new_binary(NodeKind::Add, node, mul(token, vars)?);
         } else if token.consume("-") {
-            node = Node::new_binary(NodeKind::Subtract, node, mul(token));
+            node = Node::new_binary(NodeKind::Subtract, node, mul(token, vars)?);
         } else {
-            return node;
+            return Ok(node);
         }
     }
 }
 
-fn mul(token: &mut TokenList) -> Node {
-    let mut node = unary(token);
+fn mul(token: &mut TokenList, vars: &mut Vec<String>) -> Result<Node, ParseError> {
+    let mut node = unary(token, vars)?;
     loop {
         if token.consume("*") {
-            node = Node::new_binary(NodeKind::Multiply, node, unary(token));
+            node = Node::new_binary(NodeKind::Multiply, node, unary(token, vars)?);
         } else if token.consume("/") {
-            node = Node::new_binary(NodeKind::Divide, node, unary(token));
+            node = Node::new_binary(NodeKind::Divide, node, unary(token, vars)?);
         } else {
-            return node;
+            return Ok(node);
         }
     }
 }
 
-fn unary(token: &mut TokenList) -> Node {
+fn unary(token: &mut TokenList, vars: &mut Vec<String>) -> Result<Node, ParseError> {
     if token.consume("+") {
-        primary(token)
+        Ok(primary(token, vars)?)
     } else if token.consume("-") {
-        Node::new_binary(NodeKind::Subtract, Node::Num(0), primary(token))
+        Ok(Node::new_binary(NodeKind::Subtract, Node::Num(0), primary(token, vars)?))
     } else {
-        primary(token)
+        Ok(primary(token, vars)?)
     }
 }
 
-fn primary(token: &mut TokenList) -> Node {
+fn primary(token: &mut TokenList, vars: &mut Vec<String>) -> Result<Node, ParseError> {
     if token.consume("(") {
-        let node = expression(token);
-        token.expect(")");
-        node
+        let node = expression(token, vars)?;
+        if token.consume(")") {
+            Ok(node)
+        } else {
+            Err(ParseError)
+        }
     } else if token.consume_ident() {
-        ident(token)
+        Ok(ident(token, vars)?)
     } else {
-        number(token)
+        Ok(number(token, vars)?)
     }
 }
 
-fn number(token: &mut TokenList) -> Node {
-    Node::Num(token.expect_num().unwrap())
+fn number(token: &mut TokenList, _vars: &mut Vec<String>) -> Result<Node, ParseError> {
+    if let Some(i) = token.expect_num() {
+        Ok(Node::Num(i))
+    } else {
+        Err(ParseError)
+    }
 }
 
-fn ident(token: &mut TokenList) -> Node {
-    Node::LocalVariable(token.expect_ident().unwrap() * 8)
+fn ident(token: &mut TokenList, vars: &mut Vec<String>) -> Result<Node, ParseError> {
+    if let Some(ident) = token.expect_ident() {
+        let len = vars.len();
+        for i in 0 .. len {
+            if vars[i] == ident {
+                return Ok(Node::LocalVariable(i as i64 * 8))
+            }
+        }
+        if len < 26 {
+            vars.push(ident);
+            Ok(Node::LocalVariable(len as i64 * 8))
+        } else {
+            Err(ParseError)
+        }
+    } else {
+        Err(ParseError)
+    }
 }
 
 impl Node {
-    fn new_binary(kind: NodeKind, left: Node, right: Node) -> Self {
+    fn new_binary(kind: NodeKind, left: Self, right: Self) -> Self {
         Node::BinaryOperator{
             kind, 
             left: Box::new(left), 
@@ -152,11 +185,21 @@ impl Node {
         }
     }
 
-    fn new_compare(kind: CompareKind, left: Node, right: Node) -> Self {
+    fn new_compare(kind: CompareKind, left: Self, right: Self) -> Self {
         Node::BinaryOperator{
             kind: NodeKind::Compare(kind), 
             left: Box::new(left), 
             right: Box::new(right)
         }
+    }
+
+    fn new_return(expr: Self) -> Self {
+        Node::ReturnStatement(Box::new(expr))
+    }
+}
+
+impl std::fmt::Debug for ParseError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "ParseError")
     }
 }

@@ -1,16 +1,19 @@
-num_non_zero := "1" .. "9"
-num_with_zero := "0" .. "9"
-num := num_non_zero (num_with_zero)*
-ident := "a" .. "z"
+num_non_zero := "1" .. "9";
+num_with_zero := "0" .. "9";
+num := num_non_zero (num_with_zero)*;
+char := "a" .. "z";
 
-program := statement*
+
+program := statement*;
 statement := expression ";"
-expression := assign
+    | "return" expression ";";
+expression := assign;
 
-assign := equality ("=" assign)?
-equality := relational ("==" relational | "!=" relational)*
-relational := add ("<" add | "<=" add | ">" add | ">=" add)*
-add := mul ("+" mul | "-" mul)*
-mul := unary ("*" unary | "/" unary)*
-unary := ("+" | "-")? primary
-primary := num | ident | "(" expr ")"
+assign := equality ("=" assign)?;
+equality := relational ("==" relational | "!=" relational)*;
+relational := add ("<" add | "<=" add | ">" add | ">=" add)*;
+add := mul ("+" mul | "-" mul)*;
+mul := unary ("*" unary | "/" unary)*;
+unary := ("+" | "-")? primary;
+primary := num | ident | "(" expr ")";
+ident := char+;

@@ -22,13 +22,15 @@ fn gen(node: &Node) {
     match node {
         Node::Num(i) => {
             println!("  push {}", i);
-        },
+        }
+
         Node::LocalVariable(_) => {
             gen_local_variable(node);
             println!("  pop rax");
             println!("  mov rax, [rax]");
             println!("  push rax");
-        },
+        }
+
         Node::BinaryOperator{kind:NodeKind::Assign, left, right} => {
             gen_local_variable(&*left);
             gen(&*right);
@@ -37,7 +39,8 @@ fn gen(node: &Node) {
             println!("  pop rax");
             println!("  mov [rax], rdi");
             println!("  push rdi");
-        },
+        }
+
         Node::BinaryOperator{kind, left, right} => {
             gen(&*left);
             gen(&*right);
@@ -64,7 +67,15 @@ fn gen(node: &Node) {
                 NodeKind::Assign => unreachable!(),
             }
             println!("  push rax");
-        },
+        }
+
+        Node::ReturnStatement(expr) => {
+            gen(&*expr);
+            println!("  pop rax");
+            println!("  mov rsp, rbp");
+            println!("  pop rbp");
+            println!("  ret");
+        }
 
         Node::Statements(vec) => {
             for node in vec {

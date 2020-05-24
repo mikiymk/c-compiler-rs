@@ -3,6 +3,12 @@ enum Token {
     RESERVED(String),
     IDENT(String),
     NUM(i64),
+    KEYWORD(TokenKeyWord),
+}
+
+#[derive(Debug)]
+enum TokenKeyWord {
+    RETURN,
 }
 
 #[derive(Debug)]
@@ -10,7 +16,9 @@ pub struct TokenList {
     list : Vec<Token>,
 }
 
-pub fn tokenize(code: &String) -> Option<TokenList> {
+pub struct TokenizeError;
+
+pub fn tokenize(code: &String) -> Result<TokenList, TokenizeError> {
     let mut vect = Vec::new();
     let codev = code.chars().collect::<Vec<char>>();
     let len = codev.len();
@@ -27,30 +35,29 @@ pub fn tokenize(code: &String) -> Option<TokenList> {
             }
             '0' ..= '9' => {
                 let (lo, c) = str_to_long(code, cur);
-                cur = c;
                 vect.push(Token::NUM(lo));
-            },
+                cur = c;
+            }
             '=' | '!' | '<' | '>' => {
-                let next = codev[cur + 1];
-                if next == '=' {
+                if codev[cur + 1] == '=' {
                     vect.push(Token::RESERVED(format!("{}{}", codev[cur], codev[cur + 1])));
                     cur += 2;
                 } else {
                     vect.push(Token::RESERVED(codev[cur].to_string()));
                     cur += 1;
                 }
-            },
-            'a' ..= 'z' => {
-                vect.push(Token::IDENT(codev[cur].to_string()));
-                cur += 1;
+            }
+            'a' ..= 'z' | 'A' ..= 'Z' => {
+                let (ident, c) = get_ident(code, cur);
+                vect.push(keyword_or_ident(ident));
+                cur = c;
             }
             _ => {
-                error_at(code, cur, "トークナイズ出来ません。");
-                return None;
+                return Err(error_at(code, cur, "トークナイズ出来ません。"));
             }
         }
     }
-    Some(TokenList{ list: vect })
+    Ok(TokenList{ list: vect, })
 }
 
 fn str_to_long(code: &String, cursor: usize) -> (i64, usize) {
@@ -61,26 +68,47 @@ fn str_to_long(code: &String, cursor: usize) -> (i64, usize) {
     (code[cursor..len].parse().unwrap(), len)
 }
 
-fn error_at(code: &str, pos: usize, error: &str) {
+fn get_ident(code: &String, cursor: usize) -> (&str, usize) {
+    let codev = code.chars().collect::<Vec<char>>();
+    let len = codev.len();
+    for now in cursor + 1 .. len {
+        match codev[now] {
+            'a' ..= 'z' | 'A' ..= 'Z' | '0' ..= '9' | '_' => continue,
+            _ => return (&code[cursor..now], now),
+        }
+    }
+    (&code[cursor..len], len)
+}
+
+fn keyword_or_ident(name: &str) -> Token {
+    if name == "return" {
+        Token::RESERVED(name.to_string())
+    } else {
+        Token::IDENT(name.to_string())
+    }
+}
+
+fn error_at(code: &str, pos: usize, error: &str) -> TokenizeError {
     eprintln!("{}", error);
     eprintln!("{}", code);
     eprintln!("{}^", " ".repeat(pos));
+    TokenizeError
 }
 
 impl TokenList {
     fn get(&self) -> Option<&Token> {
-        if self.at_eof() {
-            None
-        } else {
+        if !self.at_eof() {
             Some(&self.list[0])
+        } else {
+            None
         }
     }
 
     fn pop(&mut self) -> Option<Token> {
-        if self.at_eof() {
-            None
-        } else {
+        if !self.at_eof() {
             Some(self.list.remove(0))
+        } else {
+            None
         }
     }
 
@@ -117,13 +145,18 @@ impl TokenList {
         }
     }
 
-    pub fn expect_ident(&mut self) -> Option<i64> {
+    pub fn expect_ident(&mut self) -> Option<String> {
         match self.pop() {
             Some(Token::IDENT(s)) => {
-                let c = s.chars().nth(0).unwrap();
-                Some(c as i64 - 96)
+                Some(s)
             },
             _ => None,
         }
+    }
+}
+
+impl std::fmt::Debug for TokenizeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "TokenizeError")
     }
 }

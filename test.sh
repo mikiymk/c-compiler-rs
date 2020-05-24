@@ -31,6 +31,9 @@ assert 82 "32+5; 54; 100-18;"
 assert 5 "a=5;"
 assert 6 "a=3;a*2;"
 assert 6 "a=5;b=1;a+b;"
+assert 6 "foo = 1; bar = 2 + 3; foo + bar;"
+assert 89 "return 89; 7+5;"
+assert 53 "a=53; return a; a=0; b=2;"
 
 echo OK
 
