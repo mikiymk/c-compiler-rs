@@ -1,16 +1,4 @@
-#[derive(Debug)]
-enum Token {
-    RESERVED(String),
-    IDENT(String),
-    NUM(i64),
-}
-
-#[derive(Debug)]
-pub struct TokenList {
-    list : Vec<Token>,
-}
-
-pub struct TokenizeError;
+use parse::ParseError;
 
 pub fn tokenize(code: &String) -> Result<TokenList, TokenizeError> {
     let mut vect = Vec::new();
@@ -23,7 +11,7 @@ pub fn tokenize(code: &String) -> Result<TokenList, TokenizeError> {
             ' ' | '\n' | '\r' | '\t' => {
                 cur += 1;
             }
-            '+' | '-' | '*' | '/' | '(' | ')' | ';' => {
+            '+' | '-' | '*' | '/' | '(' | ')' | ';' | '{' | '}' => {
                 vect.push(Token::RESERVED(codev[cur].to_string()));
                 cur += 1;
             }
@@ -88,6 +76,21 @@ fn error_at(code: &str, pos: usize, error: &str) -> TokenizeError {
     TokenizeError
 }
 
+#[derive(Debug)]
+enum Token {
+    RESERVED(String),
+    IDENT(String),
+    NUM(i64),
+}
+
+#[derive(Debug)]
+pub struct TokenList {
+    list : Vec<Token>,
+}
+
+pub struct TokenizeError;
+
+
 impl TokenList {
     fn get(&self) -> Option<&Token> {
         if !self.at_eof() {
@@ -132,11 +135,16 @@ impl TokenList {
         }
     }
 
+    pub fn expect_reserved(&mut self, t: &str) -> Result<String, ParseError> {
+        match self.pop() {
+            Some(Token::RESERVED(s)) if s == t => Ok(s),
+            _ => Err(ParseError::new(format!("{} がありません。", t))),
+        }
+    }
+
     pub fn expect_ident(&mut self) -> Option<String> {
         match self.pop() {
-            Some(Token::IDENT(s)) => {
-                Some(s)
-            },
+            Some(Token::IDENT(s)) => Some(s),
             _ => None,
         }
     }

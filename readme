@@ -1,4 +1,16 @@
 
-c compiler.
+Rustで書いたC言語のコンパイラ
 
-i learn it -> https://www.sigbus.info/compilerbook .
+ここを見て書いた -> https://www.sigbus.info/compilerbook .
+
+# 出来ること
+
+- 0 ～ 255の数を返す
+- 足し算、引き算
+- 掛け算、割り算、()による計算の優先順位
+- 単項プラス、単項マイナス
+- 比較(等しい、等しくない、大小)
+- 複数の文
+- 26個までの変数(1文字、複数文字)
+- return文
+- if文、while文、for文

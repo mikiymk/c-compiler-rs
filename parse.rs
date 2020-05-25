@@ -40,6 +40,9 @@ pub enum StatementKind {
         iteration: Box<Node>,
         statement: Box<Node>,
     },
+    Block {
+        statements: Vec<Node>,
+    }
 }
 
 #[derive(Debug)]
@@ -67,16 +70,18 @@ pub fn node(token: &mut TokenList) -> Result<Node, ParseError> {
 }
 
 fn statement(token: &mut TokenList, vars: &mut Vec<String>) -> Result<Node, ParseError> {
-    let node = if token.consume("return") {
-        Node::new_return(expression(token, vars)?)
+    if token.consume("{") {
+        let mut vect = Vec::new();
+        loop {
+            if token.consume("}") {
+                return Ok(Node::new_block(vect));
+            }
+            vect.push(statement(token, vars)?);
+        }
     } else if token.consume("if") {
-        if !token.consume("(") {
-            return Err(ParseError("( がありません。".to_string()));
-        }
+        token.expect_reserved("(")?;
         let cond = expression(token, vars)?;
-        if !token.consume(")") {
-            return Err(ParseError(") がありません。".to_string()));
-        }
+        token.expect_reserved(")")?;
         let stmt = statement(token, vars)?;
         let node = if token.consume("else") {
             Node::new_if_else(cond, stmt, statement(token, vars)?)
@@ -85,41 +90,29 @@ fn statement(token: &mut TokenList, vars: &mut Vec<String>) -> Result<Node, Pars
         };
         return Ok(node);
     } else if token.consume("while") {
-        if !token.consume("(") {
-            return Err(ParseError("( がありません。".to_string()));
-        }
+        token.expect_reserved("(")?;
         let cond = expression(token, vars)?;
-        if !token.consume(")") {
-            return Err(ParseError(") がありません。".to_string()));
-        }
+        token.expect_reserved(")")?;
         let stmt = statement(token, vars)?;
         return Ok(Node::new_while(cond, stmt));
     } else if token.consume("for") {
-        if !token.consume("(") {
-            return Err(ParseError("( がありません。".to_string()));
-        }
+        token.expect_reserved("(")?;
         let init = expression(token, vars)?;
-        if !token.consume(";") {
-            return Err(ParseError("; がありません。".to_string()));
-        }
+        token.expect_reserved(";")?;
         let cond = expression(token, vars)?;
-        if !token.consume(";") {
-            return Err(ParseError("; がありません。".to_string()));
-        }
+        token.expect_reserved(";")?;
         let iter = expression(token, vars)?;
-        if !token.consume(")") {
-            return Err(ParseError(") がありません。".to_string()));
-        }
+        token.expect_reserved(")")?;
         let stmt = statement(token, vars)?;
         return Ok(Node::new_for(init, cond, iter, stmt));
+    }
+    let node = if token.consume("return") {
+        Node::new_return(expression(token, vars)?)
     } else {
         expression(token, vars)?
     };
-    if token.consume(";") {
-        Ok(node)
-    } else {
-        Err(ParseError(";がありません。".to_string()))
-    }
+    token.expect_reserved(";")?;
+    Ok(node)
 }
 
 fn expression(token: &mut TokenList, vars: &mut Vec<String>) -> Result<Node, ParseError> {
@@ -293,6 +286,18 @@ impl Node {
             iteration: Box::new(iteration),
             statement: Box::new(statement),
         })
+    }
+
+    fn new_block(vect: Vec<Self>) -> Self {
+        Node::Statement(StatementKind::Block {
+            statements: vect,
+        })
+    }
+}
+
+impl ParseError {
+    pub fn new(error: String) -> ParseError {
+        ParseError(error)
     }
 }
 

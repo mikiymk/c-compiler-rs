@@ -9,7 +9,9 @@ statement := expression ";"
     | "return" expression ";"
     | "if" "(" expression ")" statement ("else" statement)?
     | "while" "(" expression ")" statement
-    | "for" "(" expression? ";" expression? ";" expression? ")" statement; 
+    | "for" "(" expression? ";" expression? ";" expression? ")" statement
+    | "{" statement* "}";
+
 expression := assign;
 
 assign := equality ("=" assign)?;

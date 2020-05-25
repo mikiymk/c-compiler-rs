@@ -3,7 +3,7 @@ use parse::NodeKind;
 use parse::CompareKind;
 use parse::StatementKind;
 
-pub fn assemble(node: &Node) {
+pub fn code_generate(node: &Node) {
     let mut label = Label(0);
 
     println!(".intel_syntax noprefix");
@@ -34,7 +34,7 @@ fn gen(node: &Node, label: &mut Label) {
             println!("  push rax");
         }
 
-        Node::BinaryOperator{kind:NodeKind::Assign, left, right} => {
+        Node::BinaryOperator{kind: NodeKind::Assign, left, right} => {
             gen_local_variable(&*left);
             gen(&*right, label);
 
@@ -132,6 +132,13 @@ fn gen(node: &Node, label: &mut Label) {
                     gen(&*iteration, label);
                     println!("  jmp .Lbegin{}", lbegin);
                     println!(".Lend{}:", lend);
+                }
+
+                StatementKind::Block{statements} => {
+                    for statement in statements {
+                        gen(statement, label);
+                        println!("  pop rax");
+                    }
                 }
             }
         }

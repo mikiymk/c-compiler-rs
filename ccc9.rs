@@ -17,7 +17,7 @@ fn main() {
             match parse::node(&mut token) {
                 Ok(node) => {
                     eprintln!("{:?}", node);
-                    assemble::assemble(&node)
+                    assemble::code_generate(&node)
                 }
                 Err(e) => {
                     eprintln!("{:?}", e)
