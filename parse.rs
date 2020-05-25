@@ -51,6 +51,7 @@ pub enum Node {
     Statement(StatementKind),
     FunctionCall {
         name: String,
+        args: Vec<Node>,
     },
     BinaryOperator {
         kind: NodeKind,
@@ -200,11 +201,8 @@ fn unary(token: &mut TokenList, vars: &mut Vec<String>) -> Result<Node, ParseErr
 fn primary(token: &mut TokenList, vars: &mut Vec<String>) -> Result<Node, ParseError> {
     if token.consume("(") {
         let node = expression(token, vars)?;
-        if token.consume(")") {
-            Ok(node)
-        } else {
-            Err(ParseError(")がありません。".to_string()))
-        }
+        token.expect_reserved(")")?;
+        Ok(node)
     } else if token.consume_ident() {
         Ok(ident(token, vars)?)
     } else {
@@ -223,8 +221,24 @@ fn number(token: &mut TokenList, _vars: &mut Vec<String>) -> Result<Node, ParseE
 fn ident(token: &mut TokenList, vars: &mut Vec<String>) -> Result<Node, ParseError> {
     if let Some(ident) = token.expect_ident() {
         if token.consume("(") {
+            if token.consume(")") {
+                return Ok(Node::FunctionCall{ name: ident, args: Vec::default() });
+            }
+            let mut vect = Vec::new();
+            let mut i = 0;
+            loop {
+                vect.push(expression(token, vars)?);
+                i += 1;
+                
+                if !token.consume(",") {
+                    break;
+                }
+                if i >= 6 {
+                    return Err(ParseError("関数の引数は6こ以下です。".to_string()))
+                }
+            }
             token.expect_reserved(")")?;
-            return Ok(Node::FunctionCall{ name: ident, });
+            return Ok(Node::FunctionCall{ name: ident, args: vect });
         }
         let len = vars.len();
         for i in 0 .. len {

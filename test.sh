@@ -42,6 +42,7 @@ assert 57 "s=2;for(i=0;i<=10;i=i+1)s=s+i;return s;"
 assert 123 "s=93; for(i=0;i<=10;i=i+1){for(i2=0;i2<=i;i2=i2+1){if(i*i2>s)s=s+i+i2+10;}}return s;"
 assert 47 "a=b=3;b=c=93; if(a<b){c=47;}return c;"
 assert 32 "a=foo();a;"
+assert 75 "a=5;b=86;c=bar(a,b);return c;"
 
 echo OK
 

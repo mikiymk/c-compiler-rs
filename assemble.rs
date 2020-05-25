@@ -101,7 +101,29 @@ fn gen(node: &Node, label: &mut Label) {
             label.push("rax");
         }
 
-        Node::FunctionCall{name} => {
+        Node::FunctionCall{name, args} => {
+            for arg in args {
+                gen(arg, label);
+            }
+            let len = args.len();
+            if len == 6 {
+                label.pop("r9");
+            }
+            if len >= 5 {
+                label.pop("r8");
+            }
+            if len >= 4 {
+                label.pop("rcx");
+            }
+            if len >= 3 {
+                label.pop("rdx");
+            }
+            if len >= 2 {
+                label.pop("rsi");
+            }
+            if len >= 1 {
+                label.pop("rdi");
+            }
             label.call(name);
             label.push("rax");
         }
