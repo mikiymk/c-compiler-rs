@@ -3,7 +3,9 @@ CFLAGS=-std=c11 -g -static
 ccc9: *.rs
 	rustc ccc9.rs
 
-test: ccc9
+func.o: func.c
+
+test: ccc9 func.o
 	./test.sh
 
 clean:

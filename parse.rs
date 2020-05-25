@@ -49,6 +49,9 @@ pub enum StatementKind {
 pub enum Node {
     Statements(Vec<Node>),
     Statement(StatementKind),
+    FunctionCall {
+        name: String,
+    },
     BinaryOperator {
         kind: NodeKind,
         left: Box<Node>,
@@ -219,6 +222,10 @@ fn number(token: &mut TokenList, _vars: &mut Vec<String>) -> Result<Node, ParseE
 
 fn ident(token: &mut TokenList, vars: &mut Vec<String>) -> Result<Node, ParseError> {
     if let Some(ident) = token.expect_ident() {
+        if token.consume("(") {
+            token.expect_reserved(")")?;
+            return Ok(Node::FunctionCall{ name: ident, });
+        }
         let len = vars.len();
         for i in 0 .. len {
             if vars[i] == ident {
