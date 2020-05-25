@@ -6,7 +6,10 @@ char := "a" .. "z";
 
 program := statement*;
 statement := expression ";"
-    | "return" expression ";";
+    | "return" expression ";"
+    | "if" "(" expression ")" statement ("else" statement)?
+    | "while" "(" expression ")" statement
+    | "for" "(" expression? ";" expression? ";" expression? ")" statement; 
 expression := assign;
 
 assign := equality ("=" assign)?;
@@ -15,5 +18,5 @@ relational := add ("<" add | "<=" add | ">" add | ">=" add)*;
 add := mul ("+" mul | "-" mul)*;
 mul := unary ("*" unary | "/" unary)*;
 unary := ("+" | "-")? primary;
-primary := num | ident | "(" expr ")";
+primary := num | ident | "(" expression ")";
 ident := char+;

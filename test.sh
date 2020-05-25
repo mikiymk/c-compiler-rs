@@ -34,6 +34,10 @@ assert 6 "a=5;b=1;a+b;"
 assert 6 "foo = 1; bar = 2 + 3; foo + bar;"
 assert 89 "return 89; 7+5;"
 assert 53 "a=53; return a; a=0; b=2;"
+assert 32 "a=32; if (4 > 2) return a; 5+3;"
+assert 10 "a=100; b=10; if (11 == b) 5; else a / b;"
+assert 38 "tkg=10; while( tkg) tkg=tkg-1;38;"
+assert 57 "s=2;for(i=0;i<=10;i=i+1)s=s+i;return s;"
 
 echo OK
 

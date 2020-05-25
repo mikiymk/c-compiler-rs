@@ -19,9 +19,33 @@ pub enum CompareKind {
 }
 
 #[derive(Debug)]
+pub enum StatementKind {
+    Return(Box<Node>),
+    If {
+        condition: Box<Node>,
+        t_statement: Box<Node>,
+    },
+    IfElse {
+        condition: Box<Node>,
+        t_statement: Box<Node>,
+        f_statement: Box<Node>,
+    },
+    While {
+        condition: Box<Node>,
+        statement: Box<Node>,
+    },
+    For {
+        init: Box<Node>,
+        condition: Box<Node>,
+        iteration: Box<Node>,
+        statement: Box<Node>,
+    },
+}
+
+#[derive(Debug)]
 pub enum Node {
     Statements(Vec<Node>),
-    ReturnStatement(Box<Node>),
+    Statement(StatementKind),
     BinaryOperator {
         kind: NodeKind,
         left: Box<Node>,
@@ -31,7 +55,7 @@ pub enum Node {
     LocalVariable(i64),
 }
 
-pub struct ParseError;
+pub struct ParseError(String);
 
 pub fn node(token: &mut TokenList) -> Result<Node, ParseError> {
     let mut code = Vec::new();
@@ -45,13 +69,56 @@ pub fn node(token: &mut TokenList) -> Result<Node, ParseError> {
 fn statement(token: &mut TokenList, vars: &mut Vec<String>) -> Result<Node, ParseError> {
     let node = if token.consume("return") {
         Node::new_return(expression(token, vars)?)
+    } else if token.consume("if") {
+        if !token.consume("(") {
+            return Err(ParseError("( がありません。".to_string()));
+        }
+        let cond = expression(token, vars)?;
+        if !token.consume(")") {
+            return Err(ParseError(") がありません。".to_string()));
+        }
+        let stmt = statement(token, vars)?;
+        let node = if token.consume("else") {
+            Node::new_if_else(cond, stmt, statement(token, vars)?)
+        } else {
+            Node::new_if(cond, stmt)
+        };
+        return Ok(node);
+    } else if token.consume("while") {
+        if !token.consume("(") {
+            return Err(ParseError("( がありません。".to_string()));
+        }
+        let cond = expression(token, vars)?;
+        if !token.consume(")") {
+            return Err(ParseError(") がありません。".to_string()));
+        }
+        let stmt = statement(token, vars)?;
+        return Ok(Node::new_while(cond, stmt));
+    } else if token.consume("for") {
+        if !token.consume("(") {
+            return Err(ParseError("( がありません。".to_string()));
+        }
+        let init = expression(token, vars)?;
+        if !token.consume(";") {
+            return Err(ParseError("; がありません。".to_string()));
+        }
+        let cond = expression(token, vars)?;
+        if !token.consume(";") {
+            return Err(ParseError("; がありません。".to_string()));
+        }
+        let iter = expression(token, vars)?;
+        if !token.consume(")") {
+            return Err(ParseError(") がありません。".to_string()));
+        }
+        let stmt = statement(token, vars)?;
+        return Ok(Node::new_for(init, cond, iter, stmt));
     } else {
         expression(token, vars)?
     };
     if token.consume(";") {
         Ok(node)
     } else {
-        Err(ParseError)
+        Err(ParseError(";がありません。".to_string()))
     }
 }
 
@@ -140,7 +207,7 @@ fn primary(token: &mut TokenList, vars: &mut Vec<String>) -> Result<Node, ParseE
         if token.consume(")") {
             Ok(node)
         } else {
-            Err(ParseError)
+            Err(ParseError(")がありません。".to_string()))
         }
     } else if token.consume_ident() {
         Ok(ident(token, vars)?)
@@ -153,7 +220,7 @@ fn number(token: &mut TokenList, _vars: &mut Vec<String>) -> Result<Node, ParseE
     if let Some(i) = token.expect_num() {
         Ok(Node::Num(i))
     } else {
-        Err(ParseError)
+        Err(ParseError("数ではありません。".to_string()))
     }
 }
 
@@ -169,10 +236,10 @@ fn ident(token: &mut TokenList, vars: &mut Vec<String>) -> Result<Node, ParseErr
             vars.push(ident);
             Ok(Node::LocalVariable(len as i64 * 8))
         } else {
-            Err(ParseError)
+            Err(ParseError("変数の数が多すぎます。".to_string()))
         }
     } else {
-        Err(ParseError)
+        Err(ParseError("識別子ではありません。".to_string()))
     }
 }
 
@@ -194,12 +261,44 @@ impl Node {
     }
 
     fn new_return(expr: Self) -> Self {
-        Node::ReturnStatement(Box::new(expr))
+        Node::Statement(StatementKind::Return(Box::new(expr)))
+    }
+
+    fn new_if(condition: Self, t_statement: Self) -> Self {
+        Node::Statement(StatementKind::If {
+            condition: Box::new(condition),
+            t_statement: Box::new(t_statement),
+        })
+    }
+
+    fn new_if_else(condition: Self, t_statement: Self, f_statement: Self) -> Self {
+        Node::Statement(StatementKind::IfElse {
+            condition: Box::new(condition),
+            t_statement: Box::new(t_statement),
+            f_statement: Box::new(f_statement),
+        })
+    }
+
+    fn new_while(condition: Self, statement: Self) -> Self {
+        Node::Statement(StatementKind::While {
+            condition: Box::new(condition),
+            statement: Box::new(statement),
+        })
+    }
+
+    fn new_for(init: Self, condition: Self, iteration: Self, statement: Self) -> Self {
+        Node::Statement(StatementKind::For {
+            init: Box::new(init),
+            condition: Box::new(condition),
+            iteration: Box::new(iteration),
+            statement: Box::new(statement),
+        })
     }
 }
 
 impl std::fmt::Debug for ParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "ParseError")
+        writeln!(f, "ParseError")?;
+        writeln!(f, "{}", self.0)
     }
 }

@@ -20,12 +20,12 @@ fn main() {
                     assemble::assemble(&node)
                 }
                 Err(e) => {
-                    eprintln!("Parse Error\n{:?}", e)
+                    eprintln!("{:?}", e)
                 }
             }
         }
         Err(e) => {
-            eprintln!("Tokenize Error\n{:?}", e)
+            eprintln!("{:?}", e)
         }
     }
 }

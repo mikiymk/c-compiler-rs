@@ -3,12 +3,6 @@ enum Token {
     RESERVED(String),
     IDENT(String),
     NUM(i64),
-    KEYWORD(TokenKeyWord),
-}
-
-#[derive(Debug)]
-enum TokenKeyWord {
-    RETURN,
 }
 
 #[derive(Debug)]
@@ -26,7 +20,7 @@ pub fn tokenize(code: &String) -> Result<TokenList, TokenizeError> {
 
     while cur < len {
         match codev[cur] {
-            ' ' => {
+            ' ' | '\n' | '\r' | '\t' => {
                 cur += 1;
             }
             '+' | '-' | '*' | '/' | '(' | ')' | ';' => {
@@ -81,10 +75,9 @@ fn get_ident(code: &String, cursor: usize) -> (&str, usize) {
 }
 
 fn keyword_or_ident(name: &str) -> Token {
-    if name == "return" {
-        Token::RESERVED(name.to_string())
-    } else {
-        Token::IDENT(name.to_string())
+    match name {
+        "return" | "if" | "else" | "while" | "for" => Token::RESERVED(name.to_string()),
+        _ => Token::IDENT(name.to_string()),
     }
 }
 
@@ -115,7 +108,9 @@ impl TokenList {
     pub fn at_eof(&self) -> bool {
         self.list.len() == 0
     }
+}
 
+impl TokenList {
     pub fn consume(&mut self, stri: &str) -> bool {
         if let Some(Token::RESERVED(ref s)) = self.get() {
             if s == stri {
@@ -128,14 +123,6 @@ impl TokenList {
 
     pub fn consume_ident(&self) -> bool {
         matches!(self.get(), Some(Token::IDENT(_)))
-    }
-
-    pub fn expect(&mut self, stri: &str) -> bool {
-        if let Token::RESERVED(s) = self.pop().unwrap() {
-            stri == s
-        } else {
-            false
-        }
     }
 
     pub fn expect_num(&mut self) -> Option<i64> {

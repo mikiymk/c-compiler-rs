@@ -1,8 +1,11 @@
 use parse::Node;
 use parse::NodeKind;
 use parse::CompareKind;
+use parse::StatementKind;
 
 pub fn assemble(node: &Node) {
+    let mut label = Label(0);
+
     println!(".intel_syntax noprefix");
     println!(".global main");
     println!("main:");
@@ -11,14 +14,14 @@ pub fn assemble(node: &Node) {
     println!("  mov rbp, rsp");
     println!("  sub rsp, 208");
 
-    gen(node);
+    gen(node, &mut label);
 
     println!("  mov rsp, rbp");
     println!("  pop rbp");
     println!("  ret");
 }
 
-fn gen(node: &Node) {
+fn gen(node: &Node, label: &mut Label) {
     match node {
         Node::Num(i) => {
             println!("  push {}", i);
@@ -33,7 +36,7 @@ fn gen(node: &Node) {
 
         Node::BinaryOperator{kind:NodeKind::Assign, left, right} => {
             gen_local_variable(&*left);
-            gen(&*right);
+            gen(&*right, label);
 
             println!("  pop rdi");
             println!("  pop rax");
@@ -42,8 +45,8 @@ fn gen(node: &Node) {
         }
 
         Node::BinaryOperator{kind, left, right} => {
-            gen(&*left);
-            gen(&*right);
+            gen(&*left, label);
+            gen(&*right, label);
             println!("  pop rdi");
             println!("  pop rax");
             match kind {
@@ -69,17 +72,73 @@ fn gen(node: &Node) {
             println!("  push rax");
         }
 
-        Node::ReturnStatement(expr) => {
-            gen(&*expr);
-            println!("  pop rax");
-            println!("  mov rsp, rbp");
-            println!("  pop rbp");
-            println!("  ret");
+        Node::Statement(kind) => {
+            match kind {
+                StatementKind::Return(expr) => {
+                    gen(&*expr, label);
+                    println!("  pop rax");
+                    println!("  mov rsp, rbp");
+                    println!("  pop rbp");
+                    println!("  ret");
+                }
+
+                StatementKind::If{condition, t_statement} => {
+                    let l = label.get();
+                    gen(&*condition, label);
+                    println!("  pop rax");
+                    println!("  cmp rax, 0");
+                    println!("  je .Lend{}", l);
+                    gen(&*t_statement, label);
+                    println!(".Lend{}:", l);
+                }
+
+                StatementKind::IfElse{condition, t_statement, f_statement} => {
+                    let lelse = label.get();
+                    let lend = label.get();
+                    gen(&*condition, label);
+                    println!("  pop rax");
+                    println!("  cmp rax, 0");
+                    println!("  je .Lelse{}", lelse);
+                    gen(&*t_statement, label);
+                    println!("  jmp .Lend{}", lend);
+                    println!(".Lelse{}:", lelse);
+                    gen(&*f_statement, label);
+                    println!(".Lend{}:", lend);
+                }
+
+                StatementKind::While{condition, statement} => {
+                    let lbegin = label.get();
+                    let lend = label.get();
+                    println!(".Lbegin{}:", lbegin);
+                    gen(&*condition, label);
+                    println!("  pop rax");
+                    println!("  cmp rax, 0");
+                    println!("  je .Lend{}", lend);
+                    gen(&*statement, label);
+                    println!("  jmp .Lbegin{}", lbegin);
+                    println!(".Lend{}:", lend);
+                }
+
+                StatementKind::For{init, condition, iteration, statement} => {
+                    let lbegin = label.get();
+                    let lend = label.get();
+                    gen(&*init, label);
+                    println!(".Lbegin{}:", lbegin);
+                    gen(&*condition, label);
+                    println!("  pop rax");
+                    println!("  cmp rax, 0");
+                    println!("  je .Lend{}", lend);
+                    gen(&*statement, label);
+                    gen(&*iteration, label);
+                    println!("  jmp .Lbegin{}", lbegin);
+                    println!(".Lend{}:", lend);
+                }
+            }
         }
 
         Node::Statements(vec) => {
             for node in vec {
-                gen(node);
+                gen(node, label);
                 println!("  pop rax");
             }
         }
@@ -93,5 +152,15 @@ fn gen_local_variable(node: &Node) {
         println!("  push rax");
     } else {
         eprintln!("代入の左辺値が変数ではありません。");
+    }
+}
+
+struct Label(u64);
+
+impl Label {
+    fn get(&mut self) -> u64 {
+        let a = self.0;
+        self.0 += 1;
+        a
     }
 }
