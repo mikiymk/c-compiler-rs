@@ -47,7 +47,12 @@ pub enum StatementKind {
 
 #[derive(Debug)]
 pub enum Node {
-    Statements(Vec<Node>),
+    Program(Vec<Node>),
+    Function {
+        name: String,
+        args: Vec<Node>,
+        statement: Box<Node>
+    },
     Statement(StatementKind),
     FunctionCall {
         name: String,
@@ -66,11 +71,34 @@ pub struct ParseError(String);
 
 pub fn node(token: &mut TokenList) -> Result<Node, ParseError> {
     let mut code = Vec::new();
-    let mut vars = Vec::new();
     while !token.at_eof() {
-        code.push(statement(token, &mut vars)?);
+        let mut vars = Vec::new();
+        code.push(function(token, &mut vars)?);
     }
-    Ok(Node::Statements(code))
+    Ok(Node::Program(code))
+}
+
+fn function(token: &mut TokenList, vars: &mut Vec<String>) -> Result<Node, ParseError> {
+    if let Some(name) = token.expect_ident() {
+        token.expect_reserved("(")?;
+        let mut args = Vec::new();
+        let mut i = 0;
+        while !token.consume(")") {
+            if i != 0 {
+                token.expect_reserved(",")?;
+            }
+            args.push(ident(token, vars)?);
+            i += 1;
+            
+            if i > 6 {
+                return Err(ParseError("関数の引数は6こ以下です。".to_string()))
+            }
+        }
+        let stmt = statement(token, vars)?;
+        Ok(Node::new_function(name, args, stmt))
+    } else {
+        Err(ParseError("関数を定義してください。".to_string()))
+    }
 }
 
 fn statement(token: &mut TokenList, vars: &mut Vec<String>) -> Result<Node, ParseError> {
@@ -226,29 +254,28 @@ fn ident(token: &mut TokenList, vars: &mut Vec<String>) -> Result<Node, ParseErr
             }
             let mut vect = Vec::new();
             let mut i = 0;
-            loop {
+            while !token.consume(")") {
+                if i != 0 {
+                    token.expect_reserved(",")?;
+                }
                 vect.push(expression(token, vars)?);
                 i += 1;
                 
-                if !token.consume(",") {
-                    break;
-                }
-                if i >= 6 {
+                if i > 6 {
                     return Err(ParseError("関数の引数は6こ以下です。".to_string()))
                 }
             }
-            token.expect_reserved(")")?;
             return Ok(Node::FunctionCall{ name: ident, args: vect });
         }
         let len = vars.len();
         for i in 0 .. len {
             if vars[i] == ident {
-                return Ok(Node::LocalVariable(i as i64 * 8))
+                return Ok(Node::LocalVariable((i as i64 + 1) * 8))
             }
         }
         if len < 26 {
             vars.push(ident);
-            Ok(Node::LocalVariable(len as i64 * 8))
+            Ok(Node::LocalVariable((len as i64 + 1) * 8))
         } else {
             Err(ParseError("変数の数が多すぎます。".to_string()))
         }
@@ -313,6 +340,14 @@ impl Node {
         Node::Statement(StatementKind::Block {
             statements: vect,
         })
+    }
+
+    fn new_function(name: String, args: Vec<Self>, statement: Self) -> Self {
+        Node::Function {
+            name,
+            args,
+            statement: Box::new(statement),
+        }
     }
 }
 

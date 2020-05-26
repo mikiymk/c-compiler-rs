@@ -37,26 +37,19 @@ pub fn code_generate(node: &Node) {
 
     println!(".intel_syntax noprefix");
     println!(".global main");
-    println!("main:");
-
-    label.push("rbp");
-    label.mov("rbp", "rsp");
-    label.sub("rsp", 208);
 
     gen(node, &mut label);
-
-    label.mov("rsp", "rbp");
-    label.pop("rbp");
-    label.ret();
 }
 
 fn gen(node: &Node, label: &mut Label) {
     match node {
         Node::Num(i) => {
+            label.comment("number literal");
             label.push(i);
         }
 
         Node::LocalVariable(_) => {
+            label.comment("local var until 'push rax'");
             gen_local_variable(node, label);
             label.pop("rax");
             label.mov("rax", "[rax]");
@@ -64,9 +57,12 @@ fn gen(node: &Node, label: &mut Label) {
         }
 
         Node::BinaryOperator{kind: NodeKind::Assign, left, right} => {
+            label.comment("assign left");
             gen_local_variable(&*left, label);
+            label.comment("assign right");
             gen(&*right, label);
 
+            label.comment("assign body");
             label.pop("rdi");
             label.pop("rax");
             label.mov("[rax]", "rdi");
@@ -102,6 +98,7 @@ fn gen(node: &Node, label: &mut Label) {
         }
 
         Node::FunctionCall{name, args} => {
+            label.comment("call function");
             for arg in args {
                 gen(arg, label);
             }
@@ -131,7 +128,9 @@ fn gen(node: &Node, label: &mut Label) {
         Node::Statement(kind) => {
             match kind {
                 StatementKind::Return(expr) => {
+                    label.comment("return expression");
                     gen(&*expr, label);
+                    label.comment("return body");
                     label.pop("rax");
                     label.mov("rsp", "rbp");
                     label.pop("rbp");
@@ -139,6 +138,7 @@ fn gen(node: &Node, label: &mut Label) {
                 }
 
                 StatementKind::If{condition, t_statement} => {
+                    label.comment("if statement");
                     let l = label.get();
                     gen(&*condition, label);
                     label.pop("rax");
@@ -149,6 +149,7 @@ fn gen(node: &Node, label: &mut Label) {
                 }
 
                 StatementKind::IfElse{condition, t_statement, f_statement} => {
+                    label.comment("if else statement");
                     let lelse = label.get();
                     let lend = label.get();
                     gen(&*condition, label);
@@ -163,6 +164,7 @@ fn gen(node: &Node, label: &mut Label) {
                 }
 
                 StatementKind::While{condition, statement} => {
+                    label.comment("while statement");
                     let lbegin = label.get();
                     let lend = label.get();
                     label.l_label(lbegin);
@@ -176,6 +178,7 @@ fn gen(node: &Node, label: &mut Label) {
                 }
 
                 StatementKind::For{init, condition, iteration, statement} => {
+                    label.comment("for statement");
                     let lbegin = label.get();
                     let lend = label.get();
                     gen(&*init, label);
@@ -191,7 +194,9 @@ fn gen(node: &Node, label: &mut Label) {
                 }
 
                 StatementKind::Block{statements} => {
+                    label.comment("block statements");
                     for statement in statements {
+                        label.comment("block statement");
                         gen(statement, label);
                         label.pop("rax")
                     }
@@ -199,11 +204,46 @@ fn gen(node: &Node, label: &mut Label) {
             }
         }
 
-        Node::Statements(vec) => {
+        Node::Program(vec) => {
             for node in vec {
                 gen(node, label);
-                label.pop("rax")
             }
+        }
+
+        Node::Function {name, args, statement} => {
+            label.f_label(name);
+
+            label.push("rbp");
+            label.mov("rbp", "rsp");
+
+            let len = args.len();
+            if len >= 1 {
+                label.push("rdi");
+            }
+            if len >= 2 {
+                label.push("rsi");
+            }
+            if len >= 3 {
+                label.push("rdx");
+            }
+            if len >= 4 {
+                label.push("rcx");
+            }
+            if len >= 5 {
+                label.push("r8");
+            }
+            if len == 6 {
+                label.push("r9");
+            }
+
+            label.sub("rsp", 208);
+
+            gen(statement, label);
+
+            label.pop("rax");
+            label.mov("rsp", "rbp");
+            label.pop("rbp");
+            label.ret();
         }
     }
 }
@@ -242,6 +282,12 @@ impl Label {
 }
 
 impl Label {
+    fn comment<T>(&mut self, src: T)
+    where
+        T: std::fmt::Display
+    {
+        println!("# {}", src);
+    }
     fn push<T>(&mut self, src: T)
     where
         T: std::fmt::Display
@@ -374,6 +420,13 @@ impl Label {
         // if self.push_count % 2 == 1 {
         //     self.add("rsp", 8);
         // }
+    }
+
+    fn f_label<T>(&mut self, src: T)
+    where
+        T: std::fmt::Display
+    {
+        println!("{}:", src);
     }
 
     fn l_label<T>(&mut self, src: T)
