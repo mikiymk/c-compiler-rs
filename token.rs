@@ -11,7 +11,7 @@ pub fn tokenize(code: &String) -> Result<TokenList, TokenizeError> {
             ' ' | '\n' | '\r' | '\t' => {
                 cur += 1;
             }
-            '+' | '-' | '*' | '/' | '(' | ')' | ';' | '{' | '}' | ',' => {
+            '+' | '-' | '*' | '/' | '(' | ')' | ';' | '{' | '}' | ',' | '&' => {
                 vect.push(Token::RESERVED(codev[cur].to_string()));
                 cur += 1;
             }

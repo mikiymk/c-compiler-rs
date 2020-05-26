@@ -19,6 +19,12 @@ pub enum CompareKind {
 }
 
 #[derive(Debug)]
+pub enum UnaryKind {
+    Address,
+    Deref,
+}
+
+#[derive(Debug)]
 pub enum StatementKind {
     Return(Box<Node>),
     If {
@@ -62,6 +68,10 @@ pub enum Node {
         kind: NodeKind,
         left: Box<Node>,
         right: Box<Node>
+    },
+    UnaryOperator {
+        kind: UnaryKind,
+        expression: Box<Node>,
     },
     Num(i64),
     LocalVariable(i64),
@@ -221,6 +231,10 @@ fn unary(token: &mut TokenList, vars: &mut Vec<String>) -> Result<Node, ParseErr
         Ok(primary(token, vars)?)
     } else if token.consume("-") {
         Ok(Node::new_binary(NodeKind::Subtract, Node::Num(0), primary(token, vars)?))
+    } else if token.consume("*") {
+        Ok(Node::new_unary(UnaryKind::Deref, unary(token, vars)?))
+    } else if token.consume("&") {
+        Ok(Node::new_unary(UnaryKind::Address, unary(token, vars)?))
     } else {
         Ok(primary(token, vars)?)
     }
@@ -347,6 +361,13 @@ impl Node {
             name,
             args,
             statement: Box::new(statement),
+        }
+    }
+
+    fn new_unary(kind: UnaryKind, expression: Self) -> Self {
+        Node::UnaryOperator {
+            kind,
+            expression: Box::new(expression)
         }
     }
 }

@@ -62,4 +62,8 @@ assert 6 "main() return hoge(6); hoge(a) return a;"
 assert 7 "main() return hoge(2, 1, 1, 1, 1, 1); hoge(a, b, c, d, e, f) return a+b+c+d+e+f;"
 assert 8 "main() return hoge(5); hoge(a) if(a==0) return 1; else if(a==1) return 1; else return hoge(a-1)+hoge(a-2);"
 
+# &(アドレス)と*(参照)を実装
+assert 9 "main() { x = 9; y = &x; return *y; }"
+assert 10 "main() { x = 10; y = 11; z = &y + 8; return *z; }"
+
 echo OK

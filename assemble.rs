@@ -1,5 +1,6 @@
 use parse::Node;
 use parse::NodeKind;
+use parse::UnaryKind;
 use parse::CompareKind;
 use parse::StatementKind;
 
@@ -94,6 +95,17 @@ fn gen(node: &Node, label: &mut Label) {
                 },
                 NodeKind::Assign => unreachable!(),
             }
+            label.push("rax");
+        }
+
+        Node::UnaryOperator {kind: UnaryKind::Address, expression} => {
+            gen_local_variable(expression, label);
+        }
+
+        Node::UnaryOperator {kind: UnaryKind::Deref, expression} => {
+            gen(expression, label);
+            label.pop("rax");
+            label.mov("rax", "[rax]");
             label.push("rax");
         }
 
