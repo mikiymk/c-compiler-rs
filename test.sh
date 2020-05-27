@@ -72,5 +72,8 @@ assert 11 "int main() { int a; a = 11; return a; }"
 assert 12 "int main() { int a; int b; a = 2; b = hoge(a); return a * b; } int hoge(int a) return a + 4;"
 assert 13 "int main() return 13;"
 
+# ポインタ型とポインタの指す場所に代入
+assert 14 "int main() { int a; int *b; b = &a; *b = 14; return a; }"
+assert 15 "int main() { int a; int *b; int **c; b = &a; c = &b; **c = 15; return a; }"
 
 echo OK

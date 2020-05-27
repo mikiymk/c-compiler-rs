@@ -49,7 +49,7 @@ fn gen(node: &Node, label: &mut Label) {
             label.push(i);
         }
 
-        Node::LocalVariable(_) => {
+        Node::LocalVariable(_, _) => {
             label.comment("local var until 'push rax'");
             gen_local_variable(node, label);
             label.pop("rax");
@@ -261,12 +261,18 @@ fn gen(node: &Node, label: &mut Label) {
 }
 
 fn gen_local_variable(node: &Node, label: &mut Label) {
-    if let Node::LocalVariable(offset) = node {
-        label.mov("rax", "rbp");
-        label.sub("rax", offset);
-        label.push("rax");
-    } else {
-        eprintln!("代入の左辺値が変数ではありません。");
+    match node {
+        Node::LocalVariable(_, offset) => {
+            label.mov("rax", "rbp");
+            label.sub("rax", offset);
+            label.push("rax");
+        }
+
+        Node::UnaryOperator {kind: UnaryKind::Deref, expression} => {
+            gen(expression, label);
+        }
+
+        _ => eprintln!("左辺値が代入可能ではありません。")
     }
 }
 

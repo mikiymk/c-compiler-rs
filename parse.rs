@@ -52,6 +52,12 @@ pub enum StatementKind {
 }
 
 #[derive(Debug)]
+pub enum VariableType {
+    Int,
+    Pointer(Box<VariableType>),
+}
+
+#[derive(Debug)]
 pub enum Node {
     Program(Vec<Node>),
     Function {
@@ -74,7 +80,7 @@ pub enum Node {
         expression: Box<Node>,
     },
     Num(i64),
-    LocalVariable(i64),
+    LocalVariable(VariableType, i64),
 }
 
 pub struct ParseError(String);
@@ -98,6 +104,7 @@ fn function(token: &mut TokenList, vars: &mut Vec<String>) -> Result<Node, Parse
             if i != 0 {
                 token.expect_reserved(",")?;
             }
+            token.expect_reserved("int")?;
             args.push(declaration(token, vars)?);
             i += 1;
             
@@ -151,7 +158,7 @@ fn statement(token: &mut TokenList, vars: &mut Vec<String>) -> Result<Node, Pars
     }
     let node = if token.consume("return") {
         Node::new_return(expression(token, vars)?)
-    } else if token.next_reserved("int") {
+    } else if token.consume("int") {
         declaration(token, vars)?
     } else {
         expression(token, vars)?
@@ -283,7 +290,7 @@ fn identify(token: &mut TokenList, vars: &mut Vec<String>) -> Result<Node, Parse
         let len = vars.len();
         for i in 0 .. len {
             if vars[i] == identify {
-                return Ok(Node::LocalVariable((i as i64 + 1) * 8))
+                return Ok(Node::LocalVariable(VariableType::Int, (i as i64 + 1) * 8))
             }
         }
 
@@ -294,7 +301,12 @@ fn identify(token: &mut TokenList, vars: &mut Vec<String>) -> Result<Node, Parse
 }
 
 fn declaration(token: &mut TokenList, vars: &mut Vec<String>) -> Result<Node, ParseError> {
-    token.expect_reserved("int")?;
+    if token.consume("*") {
+        if let Node::LocalVariable(t, offset) = declaration(token, vars)? {
+            return Ok(Node::LocalVariable(VariableType::Pointer(Box::new(t)), offset))
+        }
+        unreachable!();
+    }
     match token.expect_identify() {
         Some(identify) => {
             for var in &*vars {
@@ -303,7 +315,7 @@ fn declaration(token: &mut TokenList, vars: &mut Vec<String>) -> Result<Node, Pa
                 }
             }
             vars.push(identify);
-            Ok(Node::LocalVariable((vars.len() as i64) * 8))
+            Ok(Node::LocalVariable(VariableType::Int, (vars.len() as i64) * 8))
         },
         None => Err(ParseError("宣言が変数ではありません。".to_string())),
     }
