@@ -46,24 +46,31 @@ assert() {
 
 # 関数定義できるようになった。
 # main関数が最初に定義されるようになった。
-assert 0 "main() return 0;"
-assert 1 "main() if(2>3) return 2; else return 1;"
-assert 2 "main() if(2<3) return 2; else return 1;"
-assert 3 "main() {return 3;}"
-assert 3 "main() {1;2;3;return 3;}"
-assert 4 "main() {a=4; return a;}"
-assert 32 "main() return foo();"
-assert 32 "main() {a=foo();return a;}"
-assert 75 "main() return bar(1, 2);"
-assert 75 "main() {a=bar(1, 2);return a;}"
-assert 125 "main() return baz(1, 2, 3, 4, 5, 6);"
-assert 5 "main() return hoge(); hoge() return 5;"
-assert 6 "main() return hoge(6); hoge(a) return a;"
-assert 7 "main() return hoge(2, 1, 1, 1, 1, 1); hoge(a, b, c, d, e, f) return a+b+c+d+e+f;"
-assert 8 "main() return hoge(5); hoge(a) if(a==0) return 1; else if(a==1) return 1; else return hoge(a-1)+hoge(a-2);"
+# assert 0 "main() return 0;"
+# assert 1 "main() if(2>3) return 2; else return 1;"
+# assert 2 "main() if(2<3) return 2; else return 1;"
+# assert 3 "main() {return 3;}"
+# assert 3 "main() {1;2;3;return 3;}"
+# assert 4 "main() {a=4; return a;}"
+# assert 32 "main() return foo();"
+# assert 32 "main() {a=foo();return a;}"
+# assert 75 "main() return bar(1, 2);"
+# assert 75 "main() {a=bar(1, 2);return a;}"
+# assert 125 "main() return baz(1, 2, 3, 4, 5, 6);"
+# assert 5 "main() return hoge(); hoge() return 5;"
+# assert 6 "main() return hoge(6); hoge(a) return a;"
+# assert 7 "main() return hoge(2, 1, 1, 1, 1, 1); hoge(a, b, c, d, e, f) return a+b+c+d+e+f;"
+# assert 8 "main() return hoge(5); hoge(a) if(a==0) return 1; else if(a==1) return 1; else return hoge(a-1)+hoge(a-2);"
 
 # &(アドレス)と*(参照)を実装
-assert 9 "main() { x = 9; y = &x; return *y; }"
-assert 10 "main() { x = 10; y = 11; z = &y + 8; return *z; }"
+# assert 9 "main() { x = 9; y = &x; return *y; }"
+# assert 10 "main() { x = 10; y = 11; z = &y + 8; return *z; }"
+
+# int型を書く。変数を宣言する。
+# assert 11 "main() { int a; a = 11; return a; }"
+assert 11 "int main() { int a; a = 11; return a; }"
+assert 12 "int main() { int a; int b; a = 2; b = hoge(a); return a * b; } int hoge(int a) return a + 4;"
+assert 13 "int main() return 13;"
+
 
 echo OK

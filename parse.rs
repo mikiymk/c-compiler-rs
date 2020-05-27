@@ -89,7 +89,8 @@ pub fn node(token: &mut TokenList) -> Result<Node, ParseError> {
 }
 
 fn function(token: &mut TokenList, vars: &mut Vec<String>) -> Result<Node, ParseError> {
-    if let Some(name) = token.expect_ident() {
+    token.expect_reserved("int")?;
+    if let Some(name) = token.expect_identify() {
         token.expect_reserved("(")?;
         let mut args = Vec::new();
         let mut i = 0;
@@ -97,7 +98,7 @@ fn function(token: &mut TokenList, vars: &mut Vec<String>) -> Result<Node, Parse
             if i != 0 {
                 token.expect_reserved(",")?;
             }
-            args.push(ident(token, vars)?);
+            args.push(declaration(token, vars)?);
             i += 1;
             
             if i > 6 {
@@ -150,6 +151,8 @@ fn statement(token: &mut TokenList, vars: &mut Vec<String>) -> Result<Node, Pars
     }
     let node = if token.consume("return") {
         Node::new_return(expression(token, vars)?)
+    } else if token.next_reserved("int") {
+        declaration(token, vars)?
     } else {
         expression(token, vars)?
     };
@@ -245,26 +248,22 @@ fn primary(token: &mut TokenList, vars: &mut Vec<String>) -> Result<Node, ParseE
         let node = expression(token, vars)?;
         token.expect_reserved(")")?;
         Ok(node)
-    } else if token.consume_ident() {
-        Ok(ident(token, vars)?)
+    } else if token.next_identify() {
+        Ok(identify(token, vars)?)
     } else {
         Ok(number(token, vars)?)
     }
 }
 
 fn number(token: &mut TokenList, _vars: &mut Vec<String>) -> Result<Node, ParseError> {
-    if let Some(i) = token.expect_num() {
-        Ok(Node::Num(i))
-    } else {
-        Err(ParseError("数ではありません。".to_string()))
-    }
+    Ok(Node::Num(token.expect_num()?))
 }
 
-fn ident(token: &mut TokenList, vars: &mut Vec<String>) -> Result<Node, ParseError> {
-    if let Some(ident) = token.expect_ident() {
+fn identify(token: &mut TokenList, vars: &mut Vec<String>) -> Result<Node, ParseError> {
+    if let Some(identify) = token.expect_identify() {
         if token.consume("(") {
             if token.consume(")") {
-                return Ok(Node::FunctionCall{ name: ident, args: Vec::default() });
+                return Ok(Node::FunctionCall{ name: identify, args: Vec::default() });
             }
             let mut vect = Vec::new();
             let mut i = 0;
@@ -279,23 +278,36 @@ fn ident(token: &mut TokenList, vars: &mut Vec<String>) -> Result<Node, ParseErr
                     return Err(ParseError("関数の引数は6こ以下です。".to_string()))
                 }
             }
-            return Ok(Node::FunctionCall{ name: ident, args: vect });
+            return Ok(Node::FunctionCall{ name: identify, args: vect });
         }
         let len = vars.len();
         for i in 0 .. len {
-            if vars[i] == ident {
+            if vars[i] == identify {
                 return Ok(Node::LocalVariable((i as i64 + 1) * 8))
             }
         }
-        if len < 26 {
-            vars.push(ident);
-            Ok(Node::LocalVariable((len as i64 + 1) * 8))
-        } else {
-            Err(ParseError("変数の数が多すぎます。".to_string()))
-        }
+
+        Err(ParseError("宣言された変数ではありません。".to_string()))
     } else {
         Err(ParseError("識別子ではありません。".to_string()))
     }
+}
+
+fn declaration(token: &mut TokenList, vars: &mut Vec<String>) -> Result<Node, ParseError> {
+    token.expect_reserved("int")?;
+    match token.expect_identify() {
+        Some(identify) => {
+            for var in &*vars {
+                if *var == identify {
+                    return Err(ParseError("すでに宣言された変数です。".to_string()));
+                }
+            }
+            vars.push(identify);
+            Ok(Node::LocalVariable((vars.len() as i64) * 8))
+        },
+        None => Err(ParseError("宣言が変数ではありません。".to_string())),
+    }
+    
 }
 
 impl Node {

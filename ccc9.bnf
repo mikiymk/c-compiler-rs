@@ -5,8 +5,9 @@ char := "a" .. "z";
 
 
 program := function*;
-function := ident "(" (ident ("," ident)*)? ")" statement;
+function := identify "(" (declaration ("," declaration)*)? ")" statement;
 statement := expression ";"
+    | declaration ";"
     | "return" expression ";"
     | "if" "(" expression ")" statement ("else" statement)?
     | "while" "(" expression ")" statement
@@ -25,6 +26,7 @@ unary := "+"? primary
     | "*" unary
     | "&" unary;
 primary := num
-    | ident ("(" (expression ("," expression)*)? ")")?
+    | identify ("(" (expression ("," expression)*)? ")")?
     | "(" expression ")";
-ident := char+;
+declaration := "int" identify;
+identify := char+;

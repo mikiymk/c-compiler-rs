@@ -17,7 +17,7 @@ pub fn tokenize(code: &String) -> Result<TokenList, TokenizeError> {
             }
             '0' ..= '9' => {
                 let (lo, c) = str_to_long(code, cur);
-                vect.push(Token::NUM(lo));
+                vect.push(Token::NUMBER(lo));
                 cur = c;
             }
             '=' | '!' | '<' | '>' => {
@@ -30,8 +30,8 @@ pub fn tokenize(code: &String) -> Result<TokenList, TokenizeError> {
                 }
             }
             'a' ..= 'z' | 'A' ..= 'Z' => {
-                let (ident, c) = get_ident(code, cur);
-                vect.push(keyword_or_ident(ident));
+                let (identify, c) = get_identify(code, cur);
+                vect.push(keyword_or_identify(identify));
                 cur = c;
             }
             _ => {
@@ -50,7 +50,7 @@ fn str_to_long(code: &String, cursor: usize) -> (i64, usize) {
     (code[cursor..len].parse().unwrap(), len)
 }
 
-fn get_ident(code: &String, cursor: usize) -> (&str, usize) {
+fn get_identify(code: &String, cursor: usize) -> (&str, usize) {
     let codev = code.chars().collect::<Vec<char>>();
     let len = codev.len();
     for now in cursor + 1 .. len {
@@ -62,10 +62,10 @@ fn get_ident(code: &String, cursor: usize) -> (&str, usize) {
     (&code[cursor..len], len)
 }
 
-fn keyword_or_ident(name: &str) -> Token {
+fn keyword_or_identify(name: &str) -> Token {
     match name {
-        "return" | "if" | "else" | "while" | "for" => Token::RESERVED(name.to_string()),
-        _ => Token::IDENT(name.to_string()),
+        "return" | "if" | "else" | "while" | "for" | "int" => Token::RESERVED(name.to_string()),
+        _ => Token::IDENTIFY(name.to_string()),
     }
 }
 
@@ -79,8 +79,8 @@ fn error_at(code: &str, pos: usize, error: &str) -> TokenizeError {
 #[derive(Debug)]
 enum Token {
     RESERVED(String),
-    IDENT(String),
-    NUM(i64),
+    IDENTIFY(String),
+    NUMBER(i64),
 }
 
 #[derive(Debug)]
@@ -124,14 +124,18 @@ impl TokenList {
         false
     }
 
-    pub fn consume_ident(&self) -> bool {
-        matches!(self.get(), Some(Token::IDENT(_)))
+    pub fn next_reserved(&self, stri: &str) -> bool {
+        matches!(self.get(), Some(Token::RESERVED(s)) if s == stri)
     }
 
-    pub fn expect_num(&mut self) -> Option<i64> {
+    pub fn next_identify(&self) -> bool {
+        matches!(self.get(), Some(Token::IDENTIFY(_)))
+    }
+
+    pub fn expect_num(&mut self) -> Result<i64, ParseError> {
         match self.pop() {
-            Some(Token::NUM(i)) => Some(i),
-            _ => None,
+            Some(Token::NUMBER(i)) => Ok(i),
+            _ => Err(ParseError::new("数ではありません。".to_string())),
         }
     }
 
@@ -142,9 +146,9 @@ impl TokenList {
         }
     }
 
-    pub fn expect_ident(&mut self) -> Option<String> {
+    pub fn expect_identify(&mut self) -> Option<String> {
         match self.pop() {
-            Some(Token::IDENT(s)) => Some(s),
+            Some(Token::IDENTIFY(s)) => Some(s),
             _ => None,
         }
     }
