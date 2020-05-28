@@ -83,7 +83,11 @@ pub enum Node {
     LocalVariable(VariableType, i64),
 }
 
-pub struct ParseError(String);
+pub struct ParseError {
+    error: String,
+    code: String,
+    pos: usize
+}
 
 pub fn node(token: &mut TokenList) -> Result<Node, ParseError> {
     let mut code = Vec::new();
@@ -94,7 +98,7 @@ pub fn node(token: &mut TokenList) -> Result<Node, ParseError> {
     Ok(Node::Program(code))
 }
 
-fn function(token: &mut TokenList, vars: &mut Vec<String>) -> Result<Node, ParseError> {
+fn function(token: &mut TokenList, vars: &mut Vec<(String, VariableType, i64)>) -> Result<Node, ParseError> {
     token.expect_reserved("int")?;
     if let Some(name) = token.expect_identify() {
         token.expect_reserved("(")?;
@@ -109,17 +113,17 @@ fn function(token: &mut TokenList, vars: &mut Vec<String>) -> Result<Node, Parse
             i += 1;
             
             if i > 6 {
-                return Err(ParseError("関数の引数は6こ以下です。".to_string()))
+                return Err(ParseError::new("関数の引数は6こ以下です。", token))
             }
         }
         let stmt = statement(token, vars)?;
         Ok(Node::new_function(name, args, stmt))
     } else {
-        Err(ParseError("関数を定義してください。".to_string()))
+        Err(ParseError::new("関数を定義してください。", token))
     }
 }
 
-fn statement(token: &mut TokenList, vars: &mut Vec<String>) -> Result<Node, ParseError> {
+fn statement(token: &mut TokenList, vars: &mut Vec<(String, VariableType, i64)>) -> Result<Node, ParseError> {
     if token.consume("{") {
         let mut vect = Vec::new();
         loop {
@@ -167,11 +171,11 @@ fn statement(token: &mut TokenList, vars: &mut Vec<String>) -> Result<Node, Pars
     Ok(node)
 }
 
-fn expression(token: &mut TokenList, vars: &mut Vec<String>) -> Result<Node, ParseError> {
+fn expression(token: &mut TokenList, vars: &mut Vec<(String, VariableType, i64)>) -> Result<Node, ParseError> {
     assign(token, vars)
 }
 
-fn assign(token: &mut TokenList, vars: &mut Vec<String>) -> Result<Node, ParseError> {
+fn assign(token: &mut TokenList, vars: &mut Vec<(String, VariableType, i64)>) -> Result<Node, ParseError> {
     let node = equality(token, vars)?;
     if token.consume("=") {
         Ok(Node::new_binary(NodeKind::Assign, node, assign(token, vars)?))
@@ -180,7 +184,7 @@ fn assign(token: &mut TokenList, vars: &mut Vec<String>) -> Result<Node, ParseEr
     }
 }
 
-fn equality(token: &mut TokenList, vars: &mut Vec<String>) -> Result<Node, ParseError> {
+fn equality(token: &mut TokenList, vars: &mut Vec<(String, VariableType, i64)>) -> Result<Node, ParseError> {
     let mut node = relational(token, vars)?;
     loop {
         if token.consume("==") {
@@ -193,7 +197,7 @@ fn equality(token: &mut TokenList, vars: &mut Vec<String>) -> Result<Node, Parse
     }
 }
 
-fn relational(token: &mut TokenList, vars: &mut Vec<String>) -> Result<Node, ParseError> {
+fn relational(token: &mut TokenList, vars: &mut Vec<(String, VariableType, i64)>) -> Result<Node, ParseError> {
     let mut node = add(token, vars)?;
     loop {
         if token.consume("<") {
@@ -210,20 +214,39 @@ fn relational(token: &mut TokenList, vars: &mut Vec<String>) -> Result<Node, Par
     }
 }
 
-fn add(token: &mut TokenList, vars: &mut Vec<String>) -> Result<Node, ParseError> {
+fn add(token: &mut TokenList, vars: &mut Vec<(String, VariableType, i64)>) -> Result<Node, ParseError> {
     let mut node = mul(token, vars)?;
+    let rate = match &node {
+        Node::LocalVariable(VariableType::Pointer(t), _) => match &**t {
+            VariableType::Int => 4,
+            VariableType::Pointer(_) => 8,
+        }
+        _ => 1,
+    };
     loop {
         if token.consume("+") {
-            node = Node::new_binary(NodeKind::Add, node, mul(token, vars)?);
+            let mul = mul(token, vars)?;
+            let rated = if rate != 1 {
+                Node::new_binary(NodeKind::Multiply, mul, Node::Num(rate))
+            } else {
+                mul
+            };
+            node = Node::new_binary(NodeKind::Add, node, rated);
         } else if token.consume("-") {
-            node = Node::new_binary(NodeKind::Subtract, node, mul(token, vars)?);
+            let mul = mul(token, vars)?;
+            let rated = if rate != 1 {
+                Node::new_binary(NodeKind::Multiply, mul, Node::Num(rate))
+            } else {
+                mul
+            };
+            node = Node::new_binary(NodeKind::Subtract, node, rated);
         } else {
             return Ok(node);
         }
     }
 }
 
-fn mul(token: &mut TokenList, vars: &mut Vec<String>) -> Result<Node, ParseError> {
+fn mul(token: &mut TokenList, vars: &mut Vec<(String, VariableType, i64)>) -> Result<Node, ParseError> {
     let mut node = unary(token, vars)?;
     loop {
         if token.consume("*") {
@@ -236,7 +259,7 @@ fn mul(token: &mut TokenList, vars: &mut Vec<String>) -> Result<Node, ParseError
     }
 }
 
-fn unary(token: &mut TokenList, vars: &mut Vec<String>) -> Result<Node, ParseError> {
+fn unary(token: &mut TokenList, vars: &mut Vec<(String, VariableType, i64)>) -> Result<Node, ParseError> {
     if token.consume("+") {
         Ok(primary(token, vars)?)
     } else if token.consume("-") {
@@ -250,7 +273,7 @@ fn unary(token: &mut TokenList, vars: &mut Vec<String>) -> Result<Node, ParseErr
     }
 }
 
-fn primary(token: &mut TokenList, vars: &mut Vec<String>) -> Result<Node, ParseError> {
+fn primary(token: &mut TokenList, vars: &mut Vec<(String, VariableType, i64)>) -> Result<Node, ParseError> {
     if token.consume("(") {
         let node = expression(token, vars)?;
         token.expect_reserved(")")?;
@@ -262,11 +285,11 @@ fn primary(token: &mut TokenList, vars: &mut Vec<String>) -> Result<Node, ParseE
     }
 }
 
-fn number(token: &mut TokenList, _vars: &mut Vec<String>) -> Result<Node, ParseError> {
+fn number(token: &mut TokenList, _vars: &mut Vec<(String, VariableType, i64)>) -> Result<Node, ParseError> {
     Ok(Node::Num(token.expect_num()?))
 }
 
-fn identify(token: &mut TokenList, vars: &mut Vec<String>) -> Result<Node, ParseError> {
+fn identify(token: &mut TokenList, vars: &mut Vec<(String, VariableType, i64)>) -> Result<Node, ParseError> {
     if let Some(identify) = token.expect_identify() {
         if token.consume("(") {
             if token.consume(")") {
@@ -282,59 +305,70 @@ fn identify(token: &mut TokenList, vars: &mut Vec<String>) -> Result<Node, Parse
                 i += 1;
                 
                 if i > 6 {
-                    return Err(ParseError("関数の引数は6こ以下です。".to_string()))
+                    return Err(ParseError::new("関数の引数は6こ以下です。", token))
                 }
             }
             return Ok(Node::FunctionCall{ name: identify, args: vect });
         }
-        let len = vars.len();
-        for i in 0 .. len {
-            if vars[i] == identify {
-                return Ok(Node::LocalVariable(VariableType::Int, (i as i64 + 1) * 8))
+        let mut ofs = 8;
+        for (var, t, i) in &*vars {
+            if var == &identify {
+                return Ok(Node::LocalVariable(t.clone(), ofs));
             }
+            ofs += i;
         }
 
-        Err(ParseError("宣言された変数ではありません。".to_string()))
+        Err(ParseError::new("宣言された変数ではありません。", token))
     } else {
-        Err(ParseError("識別子ではありません。".to_string()))
+        Err(ParseError::new("識別子ではありません。", token))
     }
 }
 
-fn declaration(token: &mut TokenList, vars: &mut Vec<String>) -> Result<Node, ParseError> {
-    if token.consume("*") {
-        if let Node::LocalVariable(t, offset) = declaration(token, vars)? {
-            return Ok(Node::LocalVariable(VariableType::Pointer(Box::new(t)), offset))
+fn declaration(token: &mut TokenList, vars: &mut Vec<(String, VariableType, i64)>) -> Result<Node, ParseError> {
+    let (t, s) = declaration_identify(token)?;
+    let mut ofs = 8;
+    for (var, _, i) in &*vars {
+        if *var == s {
+            return Err(ParseError::new("すでに宣言された変数です。", token));
         }
-        unreachable!();
+        ofs += i;
     }
-    match token.expect_identify() {
-        Some(identify) => {
-            for var in &*vars {
-                if *var == identify {
-                    return Err(ParseError("すでに宣言された変数です。".to_string()));
-                }
-            }
-            vars.push(identify);
-            Ok(Node::LocalVariable(VariableType::Int, (vars.len() as i64) * 8))
-        },
-        None => Err(ParseError("宣言が変数ではありません。".to_string())),
-    }
-    
+    let size = match &t {
+        VariableType::Int => 8,
+        VariableType::Pointer(_) => 8,
+    };
+
+    vars.push((s, t.clone(), size));
+
+    Ok(Node::LocalVariable(t, ofs))
 }
+
+fn declaration_identify(token: &mut TokenList) -> Result<(VariableType, String), ParseError> {
+    if token.consume("*") {
+        let (t, s) = declaration_identify(token)?;
+        Ok((VariableType::Pointer(Box::new(t)), s))
+    } else {
+        match token.expect_identify() {
+            Some(s) => Ok((VariableType::Int, s)),
+            None => Err(ParseError::new("宣言が変数ではありません。", token)),
+        }
+    }
+}
+
 
 impl Node {
     fn new_binary(kind: NodeKind, left: Self, right: Self) -> Self {
         Node::BinaryOperator{
-            kind, 
-            left: Box::new(left), 
+            kind,
+            left: Box::new(left),
             right: Box::new(right)
         }
     }
 
     fn new_compare(kind: CompareKind, left: Self, right: Self) -> Self {
         Node::BinaryOperator{
-            kind: NodeKind::Compare(kind), 
-            left: Box::new(left), 
+            kind: NodeKind::Compare(kind),
+            left: Box::new(left),
             right: Box::new(right)
         }
     }
@@ -397,14 +431,37 @@ impl Node {
 }
 
 impl ParseError {
-    pub fn new(error: String) -> ParseError {
-        ParseError(error)
+    pub fn new(error: &str, token: &TokenList) -> ParseError {
+        ParseError {
+            error: error.to_string(),
+            code: token.code().to_string(),
+            pos: token.position(),
+        }
+    }
+
+    pub fn of(error: &str, code: &str, pos: usize) -> ParseError {
+        ParseError {
+            error: error.to_string(),
+            code: code.to_string(),
+            pos,
+        }
     }
 }
 
 impl std::fmt::Debug for ParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        writeln!(f, "ParseError")?;
-        writeln!(f, "{}", self.0)
+        writeln!(f, "Parse Error")?;
+        writeln!(f, "{}", self.error)?;
+        writeln!(f, "{}", self.code)?;
+        writeln!(f, "{}^", " ".repeat(self.pos))
+    }
+}
+
+impl Clone for VariableType {
+    fn clone(&self) -> Self {
+        match self {
+            VariableType::Int => VariableType::Int,
+            VariableType::Pointer(b) => VariableType::Pointer(Box::new(*b.clone())),
+        }
     }
 }

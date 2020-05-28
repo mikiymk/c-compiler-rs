@@ -269,7 +269,10 @@ fn gen_local_variable(node: &Node, label: &mut Label) {
         }
 
         Node::UnaryOperator {kind: UnaryKind::Deref, expression} => {
-            gen(expression, label);
+            gen_local_variable(expression, label);
+            label.pop("rax");
+            label.mov("rax", "[rax]");
+            label.push("rax");
         }
 
         _ => eprintln!("左辺値が代入可能ではありません。")

@@ -75,5 +75,11 @@ assert 13 "int main() return 13;"
 # ポインタ型とポインタの指す場所に代入
 assert 14 "int main() { int a; int *b; b = &a; *b = 14; return a; }"
 assert 15 "int main() { int a; int *b; int **c; b = &a; c = &b; **c = 15; return a; }"
+assert 16 "int main() { int a; int *b; int **c; int ***d; int ****e; int *****f; b = &a; c = &b; d = &c; e = &d; f = &e; *****f = 16; return a; }"
+
+# ポインタの加減算
+assert 17 "int main() { int *p; int *q; int *r; alloc4(&p, 17, 2, 19, 18); return *p; }"
+assert 18 "int main() { int *p; int *q; int *r; alloc4(&p, 17, 2, 19, 18); q = p + 3; r = q - 1; return *q; }"
+assert 19 "int main() { int *p; int *q; int *r; alloc4(&p, 17, 2, 19, 18); q = p + 3; r = q - 1; return *r; }"
 
 echo OK

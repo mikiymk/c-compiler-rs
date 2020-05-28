@@ -13,7 +13,7 @@ fn main() {
 
     match token::tokenize(&program) {
         Ok(mut token) => {
-            // eprintln!("{:?}", token);
+            eprintln!("{:?}", token);
             match parse::node(&mut token) {
                 Ok(node) => {
                     eprintln!("{:?}", node);

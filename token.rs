@@ -12,26 +12,26 @@ pub fn tokenize(code: &String) -> Result<TokenList, TokenizeError> {
                 cur += 1;
             }
             '+' | '-' | '*' | '/' | '(' | ')' | ';' | '{' | '}' | ',' | '&' => {
-                vect.push(Token::RESERVED(codev[cur].to_string()));
+                vect.push(Token::RESERVED(codev[cur].to_string(), cur));
                 cur += 1;
             }
             '0' ..= '9' => {
                 let (lo, c) = str_to_long(code, cur);
-                vect.push(Token::NUMBER(lo));
+                vect.push(Token::NUMBER(lo, cur));
                 cur = c;
             }
             '=' | '!' | '<' | '>' => {
                 if codev[cur + 1] == '=' {
-                    vect.push(Token::RESERVED(format!("{}{}", codev[cur], codev[cur + 1])));
+                    vect.push(Token::RESERVED(format!("{}{}", codev[cur], codev[cur + 1]), cur));
                     cur += 2;
                 } else {
-                    vect.push(Token::RESERVED(codev[cur].to_string()));
+                    vect.push(Token::RESERVED(codev[cur].to_string(), cur));
                     cur += 1;
                 }
             }
             'a' ..= 'z' | 'A' ..= 'Z' => {
                 let (identify, c) = get_identify(code, cur);
-                vect.push(keyword_or_identify(identify));
+                vect.push(keyword_or_identify(identify, cur));
                 cur = c;
             }
             _ => {
@@ -39,7 +39,7 @@ pub fn tokenize(code: &String) -> Result<TokenList, TokenizeError> {
             }
         }
     }
-    Ok(TokenList{ list: vect, })
+    Ok(TokenList{ code: code.to_string(), list: vect, pos: 0 })
 }
 
 fn str_to_long(code: &String, cursor: usize) -> (i64, usize) {
@@ -62,39 +62,54 @@ fn get_identify(code: &String, cursor: usize) -> (&str, usize) {
     (&code[cursor..len], len)
 }
 
-fn keyword_or_identify(name: &str) -> Token {
+fn keyword_or_identify(name: &str, cur: usize) -> Token {
     match name {
-        "return" | "if" | "else" | "while" | "for" | "int" => Token::RESERVED(name.to_string()),
-        _ => Token::IDENTIFY(name.to_string()),
+        "return" | "if" | "else" | "while" | "for" | "int" => Token::RESERVED(name.to_string(), cur),
+        _ => Token::IDENTIFY(name.to_string(), cur),
     }
 }
 
 fn error_at(code: &str, pos: usize, error: &str) -> TokenizeError {
-    eprintln!("{}", error);
-    eprintln!("{}", code);
-    eprintln!("{}^", " ".repeat(pos));
-    TokenizeError
+    TokenizeError{ code: code.to_string(), pos, error: error.to_string() }
 }
 
 #[derive(Debug)]
 enum Token {
-    RESERVED(String),
-    IDENTIFY(String),
-    NUMBER(i64),
+    RESERVED(String, usize),
+    IDENTIFY(String, usize),
+    NUMBER(i64, usize),
+}
+
+impl Token {
+    fn pos(&self) -> usize {
+        match self {
+            Token::RESERVED(_, p) => *p,
+            Token::IDENTIFY(_, p) => *p,
+            Token::NUMBER(_, p) => *p,
+        }
+    }
 }
 
 #[derive(Debug)]
 pub struct TokenList {
+    pos: usize,
+    code: String,
     list : Vec<Token>,
 }
 
-pub struct TokenizeError;
+pub struct TokenizeError {
+    code: String,
+    pos: usize,
+    error: String,
+}
 
 
 impl TokenList {
-    fn get(&self) -> Option<&Token> {
+    fn get(&mut self) -> Option<&Token> {
         if !self.at_eof() {
-            Some(&self.list[0])
+            let itm = &self.list[0];
+            self.pos = itm.pos();
+            Some(itm)
         } else {
             None
         }
@@ -102,7 +117,9 @@ impl TokenList {
 
     fn pop(&mut self) -> Option<Token> {
         if !self.at_eof() {
-            Some(self.list.remove(0))
+            let itm = self.list.remove(0);
+            self.pos = itm.pos();
+            Some(itm)
         } else {
             None
         }
@@ -114,8 +131,18 @@ impl TokenList {
 }
 
 impl TokenList {
+    pub fn code(&self) -> &str {
+        &self.code
+    }
+
+    pub fn position(&self) -> usize {
+        self.pos
+    }
+}
+
+impl TokenList {
     pub fn consume(&mut self, stri: &str) -> bool {
-        if let Some(Token::RESERVED(ref s)) = self.get() {
+        if let Some(Token::RESERVED(ref s, _)) = self.get() {
             if s == stri {
                 self.pop();
                 return true;
@@ -124,31 +151,27 @@ impl TokenList {
         false
     }
 
-    pub fn next_reserved(&self, stri: &str) -> bool {
-        matches!(self.get(), Some(Token::RESERVED(s)) if s == stri)
-    }
-
-    pub fn next_identify(&self) -> bool {
-        matches!(self.get(), Some(Token::IDENTIFY(_)))
+    pub fn next_identify(&mut self) -> bool {
+        matches!(self.get(), Some(Token::IDENTIFY(_, _)))
     }
 
     pub fn expect_num(&mut self) -> Result<i64, ParseError> {
         match self.pop() {
-            Some(Token::NUMBER(i)) => Ok(i),
-            _ => Err(ParseError::new("数ではありません。".to_string())),
+            Some(Token::NUMBER(i, _)) => Ok(i),
+            _ => Err(ParseError::of("数ではありません。", &self.code, self.pos)),
         }
     }
 
     pub fn expect_reserved(&mut self, t: &str) -> Result<String, ParseError> {
         match self.pop() {
-            Some(Token::RESERVED(s)) if s == t => Ok(s),
-            _ => Err(ParseError::new(format!("{} がありません。", t))),
+            Some(Token::RESERVED(s, _)) if s == t => Ok(s),
+            _ => Err(ParseError::of(&format!("{} がありません。", t), &self.code, self.pos)),
         }
     }
 
     pub fn expect_identify(&mut self) -> Option<String> {
         match self.pop() {
-            Some(Token::IDENTIFY(s)) => Some(s),
+            Some(Token::IDENTIFY(s, _)) => Some(s),
             _ => None,
         }
     }
@@ -156,6 +179,9 @@ impl TokenList {
 
 impl std::fmt::Debug for TokenizeError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "TokenizeError")
+        writeln!(f, "Tokenize Error")?;
+        writeln!(f, "{}", self.error)?;
+        writeln!(f, "{}", self.code)?;
+        writeln!(f, "{}^", " ".repeat(self.pos))
     }
 }
