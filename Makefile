@@ -1,7 +1,7 @@
 CFLAGS=-std=c11 -g -static
 
-ccc9: *.rs
-	rustc ccc9.rs
+ccc9:
+	cargo build
 
 func.o: func.c
 

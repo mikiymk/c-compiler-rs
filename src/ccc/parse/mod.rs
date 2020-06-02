@@ -1,92 +1,14 @@
-use token::TokenList;
+pub mod node;
 
-#[derive(Debug)]
-pub enum NodeKind {
-    Add,
-    Subtract,
-    Multiply,
-    Divide,
-    Compare(CompareKind),
-    Assign,
-}
-
-#[derive(Debug)]
-pub enum CompareKind {
-    Equal,
-    NotEqual,
-    LessThan,
-    LessEqual,
-}
-
-#[derive(Debug)]
-pub enum UnaryKind {
-    Address,
-    Deref,
-}
-
-#[derive(Debug)]
-pub enum StatementKind {
-    Return(Box<Node>),
-    If {
-        condition: Box<Node>,
-        t_statement: Box<Node>,
-    },
-    IfElse {
-        condition: Box<Node>,
-        t_statement: Box<Node>,
-        f_statement: Box<Node>,
-    },
-    While {
-        condition: Box<Node>,
-        statement: Box<Node>,
-    },
-    For {
-        init: Box<Node>,
-        condition: Box<Node>,
-        iteration: Box<Node>,
-        statement: Box<Node>,
-    },
-    Block {
-        statements: Vec<Node>,
-    }
-}
-
-#[derive(Debug)]
-pub enum VariableType {
-    Int,
-    Pointer(Box<VariableType>),
-}
-
-#[derive(Debug)]
-pub enum Node {
-    Program(Vec<Node>),
-    Function {
-        name: String,
-        args: Vec<Node>,
-        statement: Box<Node>
-    },
-    Statement(StatementKind),
-    FunctionCall {
-        name: String,
-        args: Vec<Node>,
-    },
-    BinaryOperator {
-        kind: NodeKind,
-        left: Box<Node>,
-        right: Box<Node>
-    },
-    UnaryOperator {
-        kind: UnaryKind,
-        expression: Box<Node>,
-    },
-    Num(i64),
-    LocalVariable(VariableType, i64),
-}
+use crate::ccc::parse::node::{
+    CompareKind, Node, NodeKind, StatementKind, UnaryKind, VariableType,
+};
+use crate::ccc::token::TokenList;
 
 pub struct ParseError {
     error: String,
     code: String,
-    pos: usize
+    pos: usize,
 }
 
 pub fn node(token: &mut TokenList) -> Result<Node, ParseError> {
@@ -98,7 +20,10 @@ pub fn node(token: &mut TokenList) -> Result<Node, ParseError> {
     Ok(Node::Program(code))
 }
 
-fn function(token: &mut TokenList, vars: &mut Vec<(String, VariableType, i64)>) -> Result<Node, ParseError> {
+fn function(
+    token: &mut TokenList,
+    vars: &mut Vec<(String, VariableType, i64)>,
+) -> Result<Node, ParseError> {
     token.expect_reserved("int")?;
     if let Some(name) = token.expect_identify() {
         token.expect_reserved("(")?;
@@ -111,9 +36,8 @@ fn function(token: &mut TokenList, vars: &mut Vec<(String, VariableType, i64)>) 
             token.expect_reserved("int")?;
             args.push(declaration(token, vars)?);
             i += 1;
-            
             if i > 6 {
-                return Err(ParseError::new("関数の引数は6こ以下です。", token))
+                return Err(ParseError::new("関数の引数は6こ以下です。", token));
             }
         }
         let stmt = statement(token, vars)?;
@@ -123,7 +47,10 @@ fn function(token: &mut TokenList, vars: &mut Vec<(String, VariableType, i64)>) 
     }
 }
 
-fn statement(token: &mut TokenList, vars: &mut Vec<(String, VariableType, i64)>) -> Result<Node, ParseError> {
+fn statement(
+    token: &mut TokenList,
+    vars: &mut Vec<(String, VariableType, i64)>,
+) -> Result<Node, ParseError> {
     if token.consume("{") {
         let mut vect = Vec::new();
         loop {
@@ -171,20 +98,33 @@ fn statement(token: &mut TokenList, vars: &mut Vec<(String, VariableType, i64)>)
     Ok(node)
 }
 
-fn expression(token: &mut TokenList, vars: &mut Vec<(String, VariableType, i64)>) -> Result<Node, ParseError> {
+fn expression(
+    token: &mut TokenList,
+    vars: &mut Vec<(String, VariableType, i64)>,
+) -> Result<Node, ParseError> {
     assign(token, vars)
 }
 
-fn assign(token: &mut TokenList, vars: &mut Vec<(String, VariableType, i64)>) -> Result<Node, ParseError> {
+fn assign(
+    token: &mut TokenList,
+    vars: &mut Vec<(String, VariableType, i64)>,
+) -> Result<Node, ParseError> {
     let node = equality(token, vars)?;
     if token.consume("=") {
-        Ok(Node::new_binary(NodeKind::Assign, node, assign(token, vars)?))
+        Ok(Node::new_binary(
+            NodeKind::Assign,
+            node,
+            assign(token, vars)?,
+        ))
     } else {
         Ok(node)
     }
 }
 
-fn equality(token: &mut TokenList, vars: &mut Vec<(String, VariableType, i64)>) -> Result<Node, ParseError> {
+fn equality(
+    token: &mut TokenList,
+    vars: &mut Vec<(String, VariableType, i64)>,
+) -> Result<Node, ParseError> {
     let mut node = relational(token, vars)?;
     loop {
         if token.consume("==") {
@@ -197,7 +137,10 @@ fn equality(token: &mut TokenList, vars: &mut Vec<(String, VariableType, i64)>) 
     }
 }
 
-fn relational(token: &mut TokenList, vars: &mut Vec<(String, VariableType, i64)>) -> Result<Node, ParseError> {
+fn relational(
+    token: &mut TokenList,
+    vars: &mut Vec<(String, VariableType, i64)>,
+) -> Result<Node, ParseError> {
     let mut node = add(token, vars)?;
     loop {
         if token.consume("<") {
@@ -214,13 +157,16 @@ fn relational(token: &mut TokenList, vars: &mut Vec<(String, VariableType, i64)>
     }
 }
 
-fn add(token: &mut TokenList, vars: &mut Vec<(String, VariableType, i64)>) -> Result<Node, ParseError> {
+fn add(
+    token: &mut TokenList,
+    vars: &mut Vec<(String, VariableType, i64)>,
+) -> Result<Node, ParseError> {
     let mut node = mul(token, vars)?;
     let rate = match &node {
         Node::LocalVariable(VariableType::Pointer(t), _) => match &**t {
             VariableType::Int => 4,
             VariableType::Pointer(_) => 8,
-        }
+        },
         _ => 1,
     };
     loop {
@@ -246,7 +192,10 @@ fn add(token: &mut TokenList, vars: &mut Vec<(String, VariableType, i64)>) -> Re
     }
 }
 
-fn mul(token: &mut TokenList, vars: &mut Vec<(String, VariableType, i64)>) -> Result<Node, ParseError> {
+fn mul(
+    token: &mut TokenList,
+    vars: &mut Vec<(String, VariableType, i64)>,
+) -> Result<Node, ParseError> {
     let mut node = unary(token, vars)?;
     loop {
         if token.consume("*") {
@@ -259,11 +208,18 @@ fn mul(token: &mut TokenList, vars: &mut Vec<(String, VariableType, i64)>) -> Re
     }
 }
 
-fn unary(token: &mut TokenList, vars: &mut Vec<(String, VariableType, i64)>) -> Result<Node, ParseError> {
+fn unary(
+    token: &mut TokenList,
+    vars: &mut Vec<(String, VariableType, i64)>,
+) -> Result<Node, ParseError> {
     if token.consume("+") {
         Ok(primary(token, vars)?)
     } else if token.consume("-") {
-        Ok(Node::new_binary(NodeKind::Subtract, Node::Num(0), primary(token, vars)?))
+        Ok(Node::new_binary(
+            NodeKind::Subtract,
+            Node::Num(0),
+            primary(token, vars)?,
+        ))
     } else if token.consume("*") {
         Ok(Node::new_unary(UnaryKind::Deref, unary(token, vars)?))
     } else if token.consume("&") {
@@ -273,7 +229,10 @@ fn unary(token: &mut TokenList, vars: &mut Vec<(String, VariableType, i64)>) -> 
     }
 }
 
-fn primary(token: &mut TokenList, vars: &mut Vec<(String, VariableType, i64)>) -> Result<Node, ParseError> {
+fn primary(
+    token: &mut TokenList,
+    vars: &mut Vec<(String, VariableType, i64)>,
+) -> Result<Node, ParseError> {
     if token.consume("(") {
         let node = expression(token, vars)?;
         token.expect_reserved(")")?;
@@ -285,15 +244,24 @@ fn primary(token: &mut TokenList, vars: &mut Vec<(String, VariableType, i64)>) -
     }
 }
 
-fn number(token: &mut TokenList, _vars: &mut Vec<(String, VariableType, i64)>) -> Result<Node, ParseError> {
+fn number(
+    token: &mut TokenList,
+    _vars: &mut Vec<(String, VariableType, i64)>,
+) -> Result<Node, ParseError> {
     Ok(Node::Num(token.expect_num()?))
 }
 
-fn identify(token: &mut TokenList, vars: &mut Vec<(String, VariableType, i64)>) -> Result<Node, ParseError> {
+fn identify(
+    token: &mut TokenList,
+    vars: &mut Vec<(String, VariableType, i64)>,
+) -> Result<Node, ParseError> {
     if let Some(identify) = token.expect_identify() {
         if token.consume("(") {
             if token.consume(")") {
-                return Ok(Node::FunctionCall{ name: identify, args: Vec::default() });
+                return Ok(Node::FunctionCall {
+                    name: identify,
+                    args: Vec::default(),
+                });
             }
             let mut vect = Vec::new();
             let mut i = 0;
@@ -303,12 +271,14 @@ fn identify(token: &mut TokenList, vars: &mut Vec<(String, VariableType, i64)>) 
                 }
                 vect.push(expression(token, vars)?);
                 i += 1;
-                
                 if i > 6 {
-                    return Err(ParseError::new("関数の引数は6こ以下です。", token))
+                    return Err(ParseError::new("関数の引数は6こ以下です。", token));
                 }
             }
-            return Ok(Node::FunctionCall{ name: identify, args: vect });
+            return Ok(Node::FunctionCall {
+                name: identify,
+                args: vect,
+            });
         }
         let mut ofs = 8;
         for (var, t, i) in &*vars {
@@ -324,7 +294,10 @@ fn identify(token: &mut TokenList, vars: &mut Vec<(String, VariableType, i64)>) 
     }
 }
 
-fn declaration(token: &mut TokenList, vars: &mut Vec<(String, VariableType, i64)>) -> Result<Node, ParseError> {
+fn declaration(
+    token: &mut TokenList,
+    vars: &mut Vec<(String, VariableType, i64)>,
+) -> Result<Node, ParseError> {
     let (t, s) = declaration_identify(token)?;
     let mut ofs = 8;
     for (var, _, i) in &*vars {
@@ -355,21 +328,20 @@ fn declaration_identify(token: &mut TokenList) -> Result<(VariableType, String),
     }
 }
 
-
 impl Node {
     fn new_binary(kind: NodeKind, left: Self, right: Self) -> Self {
-        Node::BinaryOperator{
+        Node::BinaryOperator {
             kind,
             left: Box::new(left),
-            right: Box::new(right)
+            right: Box::new(right),
         }
     }
 
     fn new_compare(kind: CompareKind, left: Self, right: Self) -> Self {
-        Node::BinaryOperator{
+        Node::BinaryOperator {
             kind: NodeKind::Compare(kind),
             left: Box::new(left),
-            right: Box::new(right)
+            right: Box::new(right),
         }
     }
 
@@ -409,9 +381,7 @@ impl Node {
     }
 
     fn new_block(vect: Vec<Self>) -> Self {
-        Node::Statement(StatementKind::Block {
-            statements: vect,
-        })
+        Node::Statement(StatementKind::Block { statements: vect })
     }
 
     fn new_function(name: String, args: Vec<Self>, statement: Self) -> Self {
@@ -425,7 +395,7 @@ impl Node {
     fn new_unary(kind: UnaryKind, expression: Self) -> Self {
         Node::UnaryOperator {
             kind,
-            expression: Box::new(expression)
+            expression: Box::new(expression),
         }
     }
 }

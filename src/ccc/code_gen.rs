@@ -1,8 +1,8 @@
-use parse::Node;
-use parse::NodeKind;
-use parse::UnaryKind;
-use parse::CompareKind;
-use parse::StatementKind;
+use crate::ccc::parse::node::CompareKind;
+use crate::ccc::parse::node::Node;
+use crate::ccc::parse::node::NodeKind;
+use crate::ccc::parse::node::StatementKind;
+use crate::ccc::parse::node::UnaryKind;
 
 /*
 
@@ -57,7 +57,11 @@ fn gen(node: &Node, label: &mut Label) {
             label.push("rax");
         }
 
-        Node::BinaryOperator{kind: NodeKind::Assign, left, right} => {
+        Node::BinaryOperator {
+            kind: NodeKind::Assign,
+            left,
+            right,
+        } => {
             label.comment("assign left");
             gen_local_variable(&*left, label);
             label.comment("assign right");
@@ -70,7 +74,7 @@ fn gen(node: &Node, label: &mut Label) {
             label.push("rdi");
         }
 
-        Node::BinaryOperator{kind, left, right} => {
+        Node::BinaryOperator { kind, left, right } => {
             gen(&*left, label);
             gen(&*right, label);
             label.pop("rdi");
@@ -82,7 +86,7 @@ fn gen(node: &Node, label: &mut Label) {
                 NodeKind::Divide => {
                     label.cqo();
                     label.idiv("rdi");
-                },
+                }
                 NodeKind::Compare(cmp) => {
                     label.cmp("rax", "rdi");
                     match cmp {
@@ -92,24 +96,30 @@ fn gen(node: &Node, label: &mut Label) {
                         CompareKind::LessEqual => label.setle("al"),
                     }
                     label.movzx("rax", "al");
-                },
+                }
                 NodeKind::Assign => unreachable!(),
             }
             label.push("rax");
         }
 
-        Node::UnaryOperator {kind: UnaryKind::Address, expression} => {
+        Node::UnaryOperator {
+            kind: UnaryKind::Address,
+            expression,
+        } => {
             gen_local_variable(expression, label);
         }
 
-        Node::UnaryOperator {kind: UnaryKind::Deref, expression} => {
+        Node::UnaryOperator {
+            kind: UnaryKind::Deref,
+            expression,
+        } => {
             gen(expression, label);
             label.pop("rax");
             label.mov("rax", "[rax]");
             label.push("rax");
         }
 
-        Node::FunctionCall{name, args} => {
+        Node::FunctionCall { name, args } => {
             label.comment("call function");
             for arg in args {
                 gen(arg, label);
@@ -137,84 +147,97 @@ fn gen(node: &Node, label: &mut Label) {
             label.push("rax");
         }
 
-        Node::Statement(kind) => {
-            match kind {
-                StatementKind::Return(expr) => {
-                    label.comment("return expression");
-                    gen(&*expr, label);
-                    label.comment("return body");
-                    label.pop("rax");
-                    label.mov("rsp", "rbp");
-                    label.pop("rbp");
-                    label.ret();
-                }
+        Node::Statement(kind) => match kind {
+            StatementKind::Return(expr) => {
+                label.comment("return expression");
+                gen(&*expr, label);
+                label.comment("return body");
+                label.pop("rax");
+                label.mov("rsp", "rbp");
+                label.pop("rbp");
+                label.ret();
+            }
 
-                StatementKind::If{condition, t_statement} => {
-                    label.comment("if statement");
-                    let l = label.get();
-                    gen(&*condition, label);
-                    label.pop("rax");
-                    label.cmp("rax", "0");
-                    label.je(l);
-                    gen(&*t_statement, label);
-                    label.l_label(l);
-                }
+            StatementKind::If {
+                condition,
+                t_statement,
+            } => {
+                label.comment("if statement");
+                let l = label.get();
+                gen(&*condition, label);
+                label.pop("rax");
+                label.cmp("rax", "0");
+                label.je(l);
+                gen(&*t_statement, label);
+                label.l_label(l);
+            }
 
-                StatementKind::IfElse{condition, t_statement, f_statement} => {
-                    label.comment("if else statement");
-                    let lelse = label.get();
-                    let lend = label.get();
-                    gen(&*condition, label);
-                    label.pop("rax");
-                    label.cmp("rax", "0");
-                    label.je(lelse);
-                    gen(&*t_statement, label);
-                    label.jmp(lend);
-                    label.l_label(lelse);
-                    gen(&*f_statement, label);
-                    label.l_label(lend);
-                }
+            StatementKind::IfElse {
+                condition,
+                t_statement,
+                f_statement,
+            } => {
+                label.comment("if else statement");
+                let lelse = label.get();
+                let lend = label.get();
+                gen(&*condition, label);
+                label.pop("rax");
+                label.cmp("rax", "0");
+                label.je(lelse);
+                gen(&*t_statement, label);
+                label.jmp(lend);
+                label.l_label(lelse);
+                gen(&*f_statement, label);
+                label.l_label(lend);
+            }
 
-                StatementKind::While{condition, statement} => {
-                    label.comment("while statement");
-                    let lbegin = label.get();
-                    let lend = label.get();
-                    label.l_label(lbegin);
-                    gen(&*condition, label);
-                    label.pop("rax");
-                    label.cmp("rax", "0");
-                    label.je(lend);
-                    gen(&*statement, label);
-                    label.jmp(lbegin);
-                    label.l_label(lend);
-                }
+            StatementKind::While {
+                condition,
+                statement,
+            } => {
+                label.comment("while statement");
+                let lbegin = label.get();
+                let lend = label.get();
+                label.l_label(lbegin);
+                gen(&*condition, label);
+                label.pop("rax");
+                label.cmp("rax", "0");
+                label.je(lend);
+                gen(&*statement, label);
+                label.jmp(lbegin);
+                label.l_label(lend);
+            }
 
-                StatementKind::For{init, condition, iteration, statement} => {
-                    label.comment("for statement");
-                    let lbegin = label.get();
-                    let lend = label.get();
-                    gen(&*init, label);
-                    label.l_label(lbegin);
-                    gen(&*condition, label);
-                    label.pop("rax");
-                    label.cmp("rax", "0");
-                    label.je(lend);
-                    gen(&*statement, label);
-                    gen(&*iteration, label);
-                    label.jmp(lbegin);
-                    label.l_label(lend);
-                }
+            StatementKind::For {
+                init,
+                condition,
+                iteration,
+                statement,
+            } => {
+                label.comment("for statement");
+                let lbegin = label.get();
+                let lend = label.get();
+                gen(&*init, label);
+                label.l_label(lbegin);
+                gen(&*condition, label);
+                label.pop("rax");
+                label.cmp("rax", "0");
+                label.je(lend);
+                gen(&*statement, label);
+                gen(&*iteration, label);
+                label.jmp(lbegin);
+                label.l_label(lend);
+            }
 
-                StatementKind::Block{statements} => {
-                    label.comment("block statements");
-                    for statement in statements {
-                        label.comment("block statement");
-                        gen(statement, label);
-                        label.pop("rax")
-                    }
+            StatementKind::Block { statements } => {
+                label.comment("block statements");
+                for statement in statements {
+                    label.comment("block statement");
+                    gen(statement, label);
+                    label.pop("rax")
                 }
             }
-        }
+        },
 
         Node::Program(vec) => {
             for node in vec {
@@ -222,7 +245,11 @@ fn gen(node: &Node, label: &mut Label) {
             }
         }
 
-        Node::Function {name, args, statement} => {
+        Node::Function {
+            name,
+            args,
+            statement,
+        } => {
             label.f_label(name);
 
             label.push("rbp");
@@ -268,14 +295,17 @@ fn gen_local_variable(node: &Node, label: &mut Label) {
             label.push("rax");
         }
 
-        Node::UnaryOperator {kind: UnaryKind::Deref, expression} => {
+        Node::UnaryOperator {
+            kind: UnaryKind::Deref,
+            expression,
+        } => {
             gen_local_variable(expression, label);
             label.pop("rax");
             label.mov("rax", "[rax]");
             label.push("rax");
         }
 
-        _ => eprintln!("左辺値が代入可能ではありません。")
+        _ => eprintln!("左辺値が代入可能ではありません。"),
     }
 }
 
@@ -305,13 +335,13 @@ impl Label {
 impl Label {
     fn comment<T>(&mut self, src: T)
     where
-        T: std::fmt::Display
+        T: std::fmt::Display,
     {
         println!("# {}", src);
     }
     fn push<T>(&mut self, src: T)
     where
-        T: std::fmt::Display
+        T: std::fmt::Display,
     {
         println!("  push {}", src);
         self.push_count += 8;
@@ -319,7 +349,7 @@ impl Label {
 
     fn pop<T>(&mut self, src: T)
     where
-        T: std::fmt::Display
+        T: std::fmt::Display,
     {
         println!("  pop {}", src);
         self.push_count -= 8;
@@ -328,7 +358,7 @@ impl Label {
     fn mov<T, U>(&mut self, dst: T, src: U)
     where
         T: std::fmt::Display,
-        U: std::fmt::Display
+        U: std::fmt::Display,
     {
         println!("  mov {}, {}", dst, src);
     }
@@ -336,7 +366,7 @@ impl Label {
     fn movzx<T, U>(&mut self, dst: T, src: U)
     where
         T: std::fmt::Display,
-        U: std::fmt::Display
+        U: std::fmt::Display,
     {
         println!("  movzx {}, {}", dst, src);
     }
@@ -344,7 +374,7 @@ impl Label {
     fn add<T, U>(&mut self, dst: T, src: U)
     where
         T: std::fmt::Display,
-        U: std::fmt::Display
+        U: std::fmt::Display,
     {
         println!("  add {}, {}", dst, src);
     }
@@ -352,7 +382,7 @@ impl Label {
     fn sub<T, U>(&mut self, dst: T, src: U)
     where
         T: std::fmt::Display,
-        U: std::fmt::Display
+        U: std::fmt::Display,
     {
         println!("  sub {}, {}", dst, src);
     }
@@ -360,7 +390,7 @@ impl Label {
     fn imul<T, U>(&mut self, dst: T, src: U)
     where
         T: std::fmt::Display,
-        U: std::fmt::Display
+        U: std::fmt::Display,
     {
         println!("  imul {}, {}", dst, src);
     }
@@ -371,7 +401,7 @@ impl Label {
 
     fn idiv<T>(&mut self, src: T)
     where
-        T: std::fmt::Display
+        T: std::fmt::Display,
     {
         println!("  idiv {}", src);
     }
@@ -379,35 +409,35 @@ impl Label {
     fn cmp<T, U>(&mut self, dst: T, src: U)
     where
         T: std::fmt::Display,
-        U: std::fmt::Display
+        U: std::fmt::Display,
     {
         println!("  cmp {}, {}", dst, src);
     }
 
     fn sete<T>(&mut self, src: T)
     where
-        T: std::fmt::Display
+        T: std::fmt::Display,
     {
         println!("  sete {}", src);
     }
 
     fn setne<T>(&mut self, src: T)
     where
-        T: std::fmt::Display
+        T: std::fmt::Display,
     {
         println!("  setne {}", src);
     }
 
     fn setl<T>(&mut self, src: T)
     where
-        T: std::fmt::Display
+        T: std::fmt::Display,
     {
         println!("  setl {}", src);
     }
 
     fn setle<T>(&mut self, src: T)
     where
-        T: std::fmt::Display
+        T: std::fmt::Display,
     {
         println!("  setle {}", src);
     }
@@ -418,21 +448,21 @@ impl Label {
 
     fn jmp<T>(&mut self, src: T)
     where
-        T: std::fmt::Display
+        T: std::fmt::Display,
     {
         println!("  jmp .L{}", src);
     }
 
     fn je<T>(&mut self, src: T)
     where
-        T: std::fmt::Display
+        T: std::fmt::Display,
     {
         println!("  je .L{}", src);
     }
 
     fn call<T>(&mut self, src: T)
     where
-        T: std::fmt::Display
+        T: std::fmt::Display,
     {
         let n = 16 - self.push_count % 16;
         if n != 16 {
@@ -446,14 +476,14 @@ impl Label {
 
     fn f_label<T>(&mut self, src: T)
     where
-        T: std::fmt::Display
+        T: std::fmt::Display,
     {
         println!("{}:", src);
     }
 
     fn l_label<T>(&mut self, src: T)
     where
-        T: std::fmt::Display
+        T: std::fmt::Display,
     {
         println!(".L{}:", src);
     }

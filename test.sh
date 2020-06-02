@@ -3,7 +3,7 @@ assert() {
     expected="$1"
     input="$2"
 
-    ./ccc9 "$input" > tmp.s
+    ./target/debug/ccc9 "$input" > tmp.s
     cc -o tmp tmp.s func.o
     ./tmp
     actual="$?"
