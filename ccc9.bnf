@@ -1,11 +1,16 @@
 num_non_zero := "1" .. "9";
+
 num_with_zero := "0" .. "9";
+
 num := num_non_zero (num_with_zero)*;
+
 char := "a" .. "z";
 
 
 program := function*;
-function := identify "(" (declaration ("," declaration)*)? ")" statement;
+
+function := "int" identify "(" (declaration ("," declaration)*)? ")" statement;
+
 statement := expression ";"
     | declaration ";"
     | "return" expression ";"
@@ -17,16 +22,24 @@ statement := expression ";"
 expression := assign;
 
 assign := equality ("=" assign)?;
+
 equality := relational ("==" relational | "!=" relational)*;
+
 relational := add ("<" add | "<=" add | ">" add | ">=" add)*;
+
 add := mul ("+" mul | "-" mul)*;
+
 mul := unary ("*" unary | "/" unary)*;
+
 unary := "+"? primary
     | "-" primary
     | "*" unary
     | "&" unary;
+
 primary := num
     | identify ("(" (expression ("," expression)*)? ")")?
     | "(" expression ")";
-declaration := "int" identify;
+
+declaration := "int" "*"* identify;
+
 identify := char+;

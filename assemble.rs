@@ -314,7 +314,7 @@ impl Label {
         T: std::fmt::Display
     {
         println!("  push {}", src);
-        self.push_count += 1;
+        self.push_count += 8;
     }
 
     fn pop<T>(&mut self, src: T)
@@ -322,7 +322,7 @@ impl Label {
         T: std::fmt::Display
     {
         println!("  pop {}", src);
-        self.push_count -= 1;
+        self.push_count -= 8;
     }
 
     fn mov<T, U>(&mut self, dst: T, src: U)
@@ -434,13 +434,14 @@ impl Label {
     where
         T: std::fmt::Display
     {
-        // if self.push_count % 2 == 1 {
-        //     self.sub("rsp", 8);
-        // }
+        let n = 16 - self.push_count % 16;
+        if n != 16 {
+            self.sub("rsp", n);
+        }
         println!("  call {}", src);
-        // if self.push_count % 2 == 1 {
-        //     self.add("rsp", 8);
-        // }
+        if n != 16 {
+            self.add("rsp", n);
+        }
     }
 
     fn f_label<T>(&mut self, src: T)
