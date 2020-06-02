@@ -1,6 +1,6 @@
-use crate::ccc::parse::ParseError;
+use crate::ccc::error::CompileError;
 
-pub fn tokenize(code: &String) -> Result<TokenList, TokenizeError> {
+pub fn tokenize(code: &String) -> Result<TokenList, CompileError> {
     let mut vect = Vec::new();
     let codev = code.chars().collect::<Vec<char>>();
     let len = codev.len();
@@ -38,7 +38,7 @@ pub fn tokenize(code: &String) -> Result<TokenList, TokenizeError> {
                 cur = c;
             }
             _ => {
-                return Err(error_at(code, cur, "トークナイズ出来ません。"));
+                return Err(CompileError::new(code, cur, "トークナイズ出来ません。"));
             }
         }
     }
@@ -78,14 +78,6 @@ fn keyword_or_identify(name: &str, cur: usize) -> Token {
     }
 }
 
-fn error_at(code: &str, pos: usize, error: &str) -> TokenizeError {
-    TokenizeError {
-        code: code.to_string(),
-        pos,
-        error: error.to_string(),
-    }
-}
-
 #[derive(Debug)]
 enum Token {
     RESERVED(String, usize),
@@ -108,12 +100,6 @@ pub struct TokenList {
     pos: usize,
     code: String,
     list: Vec<Token>,
-}
-
-pub struct TokenizeError {
-    code: String,
-    pos: usize,
-    error: String,
 }
 
 impl TokenList {
@@ -167,20 +153,24 @@ impl TokenList {
         matches!(self.get(), Some(Token::IDENTIFY(_, _)))
     }
 
-    pub fn expect_num(&mut self) -> Result<i64, ParseError> {
+    pub fn expect_num(&mut self) -> Result<i64, CompileError> {
         match self.pop() {
             Some(Token::NUMBER(i, _)) => Ok(i),
-            _ => Err(ParseError::of("数ではありません。", &self.code, self.pos)),
+            _ => Err(CompileError::new(
+                "数ではありません。",
+                self.pos,
+                &self.code,
+            )),
         }
     }
 
-    pub fn expect_reserved(&mut self, t: &str) -> Result<String, ParseError> {
+    pub fn expect_reserved(&mut self, t: &str) -> Result<String, CompileError> {
         match self.pop() {
             Some(Token::RESERVED(s, _)) if s == t => Ok(s),
-            _ => Err(ParseError::of(
+            _ => Err(CompileError::new(
                 &format!("{} がありません。", t),
-                &self.code,
                 self.pos,
+                &self.code,
             )),
         }
     }
@@ -190,14 +180,5 @@ impl TokenList {
             Some(Token::IDENTIFY(s, _)) => Some(s),
             _ => None,
         }
-    }
-}
-
-impl std::fmt::Debug for TokenizeError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        writeln!(f, "Tokenize Error")?;
-        writeln!(f, "{}", self.error)?;
-        writeln!(f, "{}", self.code)?;
-        writeln!(f, "{}^", " ".repeat(self.pos))
     }
 }
