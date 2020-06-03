@@ -1,9 +1,8 @@
 mod ccc;
 
 fn main() -> Result<(), ()> {
-    use ccc::code_gen::code_generate;
-    use ccc::parse::parse;
-    use ccc::parse::token::tokenize;
+    use ccc::code_generate;
+    use ccc::parse;
     use std::env::args;
 
     let args: Vec<String> = args().collect();
@@ -14,23 +13,11 @@ fn main() -> Result<(), ()> {
 
     let program = &args[1];
 
-    match tokenize(&program) {
-        Ok(mut token) => {
-            match parse(&mut token) {
-                Ok(node) => {
-                    // eprintln!("{:?}", node);
-                    code_generate(&node);
-                    Ok(())
-                }
-                Err(e) => {
-                    eprintln!("{:?}", e);
-                    Err(())
-                }
-            }
+    match parse(program) {
+        Ok(parsed) => {
+            code_generate(&parsed);
+            Ok(())
         }
-        Err(e) => {
-            eprintln!("{:?}", e);
-            Err(())
-        }
+        _ => Err(()),
     }
 }

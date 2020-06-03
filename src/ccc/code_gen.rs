@@ -1,8 +1,4 @@
-use crate::ccc::parse::node::CompareKind;
-use crate::ccc::parse::node::Node;
-use crate::ccc::parse::node::NodeKind;
-use crate::ccc::parse::node::StatementKind;
-use crate::ccc::parse::node::UnaryKind;
+use crate::ccc::parse::node::{CompareKind, Node, NodeKind, StatementKind, UnaryKind};
 
 /*
 
