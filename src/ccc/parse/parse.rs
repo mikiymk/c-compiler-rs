@@ -1,10 +1,10 @@
+use super::node::CompareKind;
+use super::node::Node;
+use super::node::NodeKind;
+use super::node::UnaryKind;
+use super::node::VariableType;
+use super::token::token::TokenList;
 use crate::ccc::error::CompileError;
-use crate::ccc::parse::node::CompareKind;
-use crate::ccc::parse::node::Node;
-use crate::ccc::parse::node::NodeKind;
-use crate::ccc::parse::node::UnaryKind;
-use crate::ccc::parse::node::VariableType;
-use crate::ccc::parse::token::token::TokenList;
 
 pub fn program(token: &mut TokenList) -> Result<Node, CompileError> {
     let mut code = Vec::new();
@@ -227,6 +227,14 @@ fn unary(
         Ok(Node::new_unary(UnaryKind::Deref, unary(token, vars)?))
     } else if token.consume_reserved("&") {
         Ok(Node::new_unary(UnaryKind::Address, unary(token, vars)?))
+    } else if token.consume_reserved("sizeof") {
+        let node = unary(token, vars)?;
+        let kind = node.kind();
+
+        match kind {
+            Ok(t) => Ok(Node::Num(t.size())),
+            Err(s) => Err(CompileError::new(s, token.position(), token.code())),
+        }
     } else {
         Ok(primary(token, vars)?)
     }

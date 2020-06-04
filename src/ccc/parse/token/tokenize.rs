@@ -39,7 +39,7 @@ pub fn tokenize(code: &str) -> Result<TokenList, CompileError> {
                 cur = c;
             }
             _ => {
-                return Err(CompileError::new(code, cur, "トークナイズ出来ません。"));
+                return Err(CompileError::new("トークナイズ出来ません。", cur, code));
             }
         }
     }
@@ -68,7 +68,9 @@ fn get_identify(code: &str, cursor: usize) -> (&str, usize) {
 
 fn keyword_or_identify(name: &str, cur: usize) -> Token {
     match name {
-        "return" | "if" | "else" | "while" | "for" | "int" => Token::new_reserved(name, cur),
+        "return" | "if" | "else" | "while" | "for" | "int" | "sizeof" => {
+            Token::new_reserved(name, cur)
+        }
         _ => Token::new_identify(name, cur),
     }
 }

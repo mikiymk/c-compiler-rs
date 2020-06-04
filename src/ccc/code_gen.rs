@@ -41,16 +41,16 @@ pub fn code_generate(node: &Node) {
 fn gen(node: &Node, label: &mut Label) {
     match node {
         Node::Num(i) => {
-            label.comment("number literal");
             label.push(i);
         }
 
         Node::LocalVariable(_, _) => {
-            label.comment("local var until 'push rax'");
+            label.comment("local var start");
             gen_local_variable(node, label);
             label.pop("rax");
             label.mov("rax", "[rax]");
             label.push("rax");
+            label.comment("local var end");
         }
 
         Node::BinaryOperator {
@@ -68,11 +68,16 @@ fn gen(node: &Node, label: &mut Label) {
             label.pop("rax");
             label.mov("[rax]", "rdi");
             label.push("rdi");
+            label.comment("assign end");
         }
 
         Node::BinaryOperator { kind, left, right } => {
+            label.comment("binary left");
             gen(&*left, label);
+            label.comment("binary right");
             gen(&*right, label);
+
+            label.comment("binary body");
             label.pop("rdi");
             label.pop("rax");
             match kind {
@@ -96,19 +101,20 @@ fn gen(node: &Node, label: &mut Label) {
                 NodeKind::Assign => unreachable!(),
             }
             label.push("rax");
+            label.comment("binary end");
         }
-
         Node::UnaryOperator {
             kind: UnaryKind::Address,
             expression,
         } => {
+            label.comment("address");
             gen_local_variable(expression, label);
         }
-
         Node::UnaryOperator {
             kind: UnaryKind::Deref,
             expression,
         } => {
+            label.comment("deref");
             gen(expression, label);
             label.pop("rax");
             label.mov("rax", "[rax]");

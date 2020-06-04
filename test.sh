@@ -53,6 +53,8 @@ assert 63 "int main() { return (3*7+(5-1==-3))*3; }"
 # 代入 =
 assert 5 "int main() { int a; return a=5; }"
 assert 6 "int main() { int a; a=3; return a*2; }"
+assert 127 "int main() { int a; int b; a=15; b=127; return b; }"
+assert 15 "int main() { int a; int b; a=15; b=127; return a; }"
 assert 6 "int main() { int a; int b; a=5; b=1; return a+b; }"
 assert 1 "int main() { int a; int b; int c; int d; int e; int f; int g; int h; int i; int j; int k; int l; int m; int n; int o; int p; int q; int r; int s; int t; int u; int v; int w; int x; int y; int z; a=b=c=d=e=f=g=h=i=j=k=l=m=n=o=p=q=r=s=t=u=v=w=x=y=z=1; return a; }"
 assert 6 "int main() { int foo; int bar; foo=1; bar=2+3; return foo+bar; }"
@@ -101,5 +103,11 @@ assert 16 "int main() { int a; int *b; int **c; int ***d; int ****e; int *****f;
 assert 17 "int main() { int *p; int *q; int *r; alloc4(&p, 17, 2, 19, 18); return *p; }"
 assert 18 "int main() { int *p; int *q; int *r; alloc4(&p, 17, 2, 19, 18); q = p + 3; r = q - 1; return *q; }"
 assert 19 "int main() { int *p; int *q; int *r; alloc4(&p, 17, 2, 19, 18); q = p + 3; r = q - 1; return *r; }"
+
+# sizeof演算子
+assert 4 "int main() { return sizeof 1; }"
+assert 4 "int main() { int a; return sizeof a; }"
+assert 4 "int main() { int a; return sizeof (a + 1); }"
+assert 8 "int main() { int *a; return sizeof a; }"
 
 echo OK

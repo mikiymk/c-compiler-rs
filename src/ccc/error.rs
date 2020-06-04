@@ -5,7 +5,7 @@ pub struct CompileError {
 }
 
 impl CompileError {
-    pub fn new<S1, S2>(code: S1, pos: usize, error: S2) -> Self
+    pub fn new<S1, S2>(error: S1, pos: usize, code: S2) -> Self
     where
         S1: std::string::ToString,
         S2: std::string::ToString,

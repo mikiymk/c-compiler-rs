@@ -151,6 +151,62 @@ impl Node {
             expression: Box::new(expression),
         }
     }
+
+    pub fn kind(&self) -> Result<VariableType, &'static str> {
+        use VariableType::Int;
+        use VariableType::Pointer;
+        match self {
+            Node::Num(_) => Ok(Int),
+            Node::Program(_) | Node::Function { .. } | Node::Statement(_) => {
+                Err("値ではありません。")
+            }
+            Node::FunctionCall { .. } => Ok(Int),
+
+            Node::BinaryOperator { kind, left, right } => match kind {
+                NodeKind::Assign => left.kind(),
+                NodeKind::Compare(_) => Ok(Int),
+                _ => match (&**left, &**right) {
+                    (Node::Num(_), r) => r.kind(),
+                    (l, Node::Num(_)) => l.kind(),
+                    (l, r) => {
+                        if l.kind()? == r.kind()? {
+                            l.kind()
+                        } else {
+                            Err("無効なオペランドです。")
+                        }
+                    }
+                },
+            },
+            Node::UnaryOperator { kind, expression } => match kind {
+                UnaryKind::Address => Ok(Pointer(Box::new(expression.kind()?))),
+                UnaryKind::Deref => match expression.kind()? {
+                    VariableType::Int => Err("無効な参照です。"),
+                    VariableType::Pointer(t) => Ok(*t),
+                },
+            },
+            Node::LocalVariable(t, _) => Ok(t.clone()),
+        }
+    }
+}
+
+impl VariableType {
+    pub fn size(&self) -> i64 {
+        match self {
+            VariableType::Int => 4,
+            VariableType::Pointer(_) => 8,
+        }
+    }
+}
+
+impl PartialEq for VariableType {
+    fn eq(&self, other: &Self) -> bool {
+        use VariableType::{Int, Pointer};
+        match (self, other) {
+            (Int, Int) => true,
+            (Pointer(s), Pointer(o)) => s == o,
+            (_, _) => false,
+        }
+    }
 }
 
 impl Clone for VariableType {

@@ -34,7 +34,8 @@ mul := unary ("*" unary | "/" unary)*;
 unary := "+"? primary
     | "-" primary
     | "*" unary
-    | "&" unary;
+    | "&" unary
+    | "sizeof" unary;
 
 primary := num
     | identify ("(" (expression ("," expression)*)? ")")?
