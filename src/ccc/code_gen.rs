@@ -66,7 +66,16 @@ fn gen(node: &Node, label: &mut Label) {
             label.comment("assign body");
             label.pop("rdi");
             label.pop("rax");
-            label.mov("[rax]", "rdi");
+            if let Ok(t) = left.kind() {
+                match t.size() {
+                    4 => {
+                        label.mov("[rax]", "edi");
+                    }
+                    _ => {
+                        label.mov("[rax]", "rdi");
+                    }
+                }
+            }
             label.push("rdi");
             label.comment("assign end");
         }
@@ -80,16 +89,22 @@ fn gen(node: &Node, label: &mut Label) {
             label.comment("binary body");
             label.pop("rdi");
             label.pop("rax");
+            let lk = left.kind();
+            let rk = right.kind();
+            let (rax, rdi) = match (lk, rk) {
+                (Ok(l), Ok(r)) if l.size() == 4 && r.size() == 4 => ("eax", "edi"),
+                _ => ("rax", "rdi"),
+            };
             match kind {
-                NodeKind::Add => label.add("rax", "rdi"),
-                NodeKind::Subtract => label.sub("rax", "rdi"),
-                NodeKind::Multiply => label.imul("rax", "rdi"),
+                NodeKind::Add => label.add(rax, rdi),
+                NodeKind::Subtract => label.sub(rax, rdi),
+                NodeKind::Multiply => label.imul(rax, rdi),
                 NodeKind::Divide => {
                     label.cqo();
-                    label.idiv("rdi");
+                    label.idiv(rdi);
                 }
                 NodeKind::Compare(cmp) => {
-                    label.cmp("rax", "rdi");
+                    label.cmp(rax, rdi);
                     match cmp {
                         CompareKind::Equal => label.sete("al"),
                         CompareKind::NotEqual => label.setne("al"),
@@ -126,24 +141,8 @@ fn gen(node: &Node, label: &mut Label) {
             for arg in args {
                 gen(arg, label);
             }
-            let len = args.len();
-            if len == 6 {
-                label.pop("r9");
-            }
-            if len >= 5 {
-                label.pop("r8");
-            }
-            if len >= 4 {
-                label.pop("rcx");
-            }
-            if len >= 3 {
-                label.pop("rdx");
-            }
-            if len >= 2 {
-                label.pop("rsi");
-            }
-            if len >= 1 {
-                label.pop("rdi");
+            for i in (0..args.len()).rev() {
+                label.pop(register::ARGS_REGISTER[i][0]);
             }
             label.call(name);
             label.push("rax");
@@ -166,9 +165,7 @@ fn gen(node: &Node, label: &mut Label) {
             } => {
                 label.comment("if statement");
                 let l = label.get();
-                gen(&*condition, label);
-                label.pop("rax");
-                label.cmp("rax", "0");
+                gen_condition(&*condition, label);
                 label.je(l);
                 gen(&*t_statement, label);
                 label.l_label(l);
@@ -182,9 +179,7 @@ fn gen(node: &Node, label: &mut Label) {
                 label.comment("if else statement");
                 let lelse = label.get();
                 let lend = label.get();
-                gen(&*condition, label);
-                label.pop("rax");
-                label.cmp("rax", "0");
+                gen_condition(&*condition, label);
                 label.je(lelse);
                 gen(&*t_statement, label);
                 label.jmp(lend);
@@ -201,9 +196,7 @@ fn gen(node: &Node, label: &mut Label) {
                 let lbegin = label.get();
                 let lend = label.get();
                 label.l_label(lbegin);
-                gen(&*condition, label);
-                label.pop("rax");
-                label.cmp("rax", "0");
+                gen_condition(&*condition, label);
                 label.je(lend);
                 gen(&*statement, label);
                 label.jmp(lbegin);
@@ -221,9 +214,7 @@ fn gen(node: &Node, label: &mut Label) {
                 let lend = label.get();
                 gen(&*init, label);
                 label.l_label(lbegin);
-                gen(&*condition, label);
-                label.pop("rax");
-                label.cmp("rax", "0");
+                gen_condition(&*condition, label);
                 label.je(lend);
                 gen(&*statement, label);
                 gen(&*iteration, label);
@@ -243,7 +234,8 @@ fn gen(node: &Node, label: &mut Label) {
 
         Node::Program(vec) => {
             for node in vec {
-                gen(node, label);
+                let mut label = Label::new();
+                gen(node, &mut label);
             }
         }
 
@@ -256,28 +248,11 @@ fn gen(node: &Node, label: &mut Label) {
 
             label.push("rbp");
             label.mov("rbp", "rsp");
-
-            let len = args.len();
-            if len >= 1 {
-                label.push("rdi");
-            }
-            if len >= 2 {
-                label.push("rsi");
-            }
-            if len >= 3 {
-                label.push("rdx");
-            }
-            if len >= 4 {
-                label.push("rcx");
-            }
-            if len >= 5 {
-                label.push("r8");
-            }
-            if len == 6 {
-                label.push("r9");
-            }
-
             label.sub("rsp", 208);
+
+            for i in 0..args.len() {
+                gen_parameter(&args[i], label, i);
+            }
 
             gen(statement, label);
 
@@ -311,9 +286,52 @@ fn gen_local_variable(node: &Node, label: &mut Label) {
     }
 }
 
-/**
- * ローカルのユニークなラベル名のための構造体
- */
+fn gen_condition(condition: &Node, label: &mut Label) {
+    gen(&*condition, label);
+    label.pop("rax");
+    let s = match condition.kind() {
+        Ok(k) if k.size() == 4 => "eax",
+        _ => "rax",
+    };
+    label.cmp(s, "0");
+}
+
+fn gen_parameter(node: &Node, label: &mut Label, parameter_index: usize) {
+    gen_local_variable(&*node, label);
+    label.pop("rax");
+
+    if let Ok(t) = node.kind() {
+        match t.size() {
+            4 => label.mov("[rax]", register::ARGS_REGISTER[parameter_index][1]),
+            _ => label.mov("[rax]", register::ARGS_REGISTER[parameter_index][0]),
+        }
+    }
+}
+
+mod register {
+    type RegisterAlias = [&'static str; 4];
+    // const RAX: RegisterAlias = ["RAX", "EAX", "AX", "AL"];
+    const RDI: RegisterAlias = ["RDI", "EDI", "DI", "DIL"];
+    const RSI: RegisterAlias = ["RSI", "ESI", "SI", "SIL"];
+    const RDX: RegisterAlias = ["RDX", "EDX", "DX", "DL"];
+    const RCX: RegisterAlias = ["RCX", "ECX", "CX", "CL"];
+    // const RBP: RegisterAlias = ["RBP", "EBP", "BP", "BPL"];
+    // const RSP: RegisterAlias = ["RSP", "ESP", "SP", "SPL"];
+    // const RBX: RegisterAlias = ["RBX", "EBX", "BX", "BL"];
+    const R8: RegisterAlias = ["R8", "R8D", "R8W", "R8B"];
+    const R9: RegisterAlias = ["R9", "R9D", "R9W", "R9B"];
+    // const R10: RegisterAlias = ["R10", "R10D", "R10W", "R10B"];
+    // const R11: RegisterAlias = ["R11", "R11D", "R11W", "R11B"];
+    // const R12: RegisterAlias = ["R12", "R12D", "R12W", "R12B"];
+    // const R13: RegisterAlias = ["R13", "R13D", "R13W", "R13B"];
+    // const R14: RegisterAlias = ["R14", "R14D", "R14W", "R14B"];
+    // const R15: RegisterAlias = ["R15", "R15D", "R15W", "R15B"];
+
+    /// 関数の引数に使うレジスタ。６個までの引数に対応。
+    pub const ARGS_REGISTER: [RegisterAlias; 6] = [RDI, RSI, RDX, RCX, R8, R9];
+}
+
+/// ローカルのユニークなラベル名のための構造体
 struct Label {
     label_count: u64,
     push_count: i64,
@@ -346,6 +364,11 @@ impl Label {
         T: std::fmt::Display,
     {
         println!("  push {}", src);
+        println!(
+            "# push count {} + 8 => {}",
+            self.push_count,
+            self.push_count + 8
+        );
         self.push_count += 8;
     }
 
@@ -354,6 +377,11 @@ impl Label {
         T: std::fmt::Display,
     {
         println!("  pop {}", src);
+        println!(
+            "# push count {} - 8 => {}",
+            self.push_count,
+            self.push_count - 8
+        );
         self.push_count -= 8;
     }
 

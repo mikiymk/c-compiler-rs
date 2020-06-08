@@ -14,6 +14,7 @@ fn main() -> Result<(), ccc::error::CompileError> {
 
     let program = &args[1];
     let parsed = parse(program)?;
+    // eprintln!("{:?}", parsed);
     code_generate(&parsed);
     Ok(())
 }

@@ -16,6 +16,11 @@ int baz(int a, int b, int c, int d, int e, int f) {
     return 125;
 }
 
+int foobar(int d) {
+    printf("func foobar OK %d\n", d);
+    return d;
+}
+
 int alloc4(int **p, int a, int b, int c, int d) {
     *p = (int *)malloc(sizeof(int) * 4);
     if (*p == NULL) printf("null\n");

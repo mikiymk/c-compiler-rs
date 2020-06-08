@@ -74,6 +74,10 @@ assert 10 "int main() { int a; a=100; if(11==10) a=5; else a=10; return a; }"
 assert 5 "int main() { int a; a=100; if(10==10) a=5; else a=10; return a; }"
 assert 102 "int main() { int a; a=100; if(11==10) { a=2*a; return a; } else { a=2+a; return a; } return 3; }"
 assert 200 "int main() { int a; a=100; if(10==10) { a=2*a; return a; } else { a=2+a; return a; } return 3; }"
+assert 50 "int main() { if(1) { return 50; } else { return 40; } return 30; }"
+assert 40 "int main() { if(0) { return 50; } else { return 40; } return 30; }"
+assert 51 "int main() { int a; a=1; if(a) { return 51; } else { return 41; } return 31; }"
+assert 41 "int main() { int a; a=0; if(a) { return 51; } else { return 41; } return 31; }"
 
 # while文
 assert 38 "int main() { int tkg; tkg=10; while(tkg) tkg=tkg-1; return 38+tkg; }"
@@ -85,13 +89,20 @@ assert 123 "int main() { int s; int i; int i2; s=93; for(i=0; i<=10; i=i+1) { fo
 
 # 関数呼び出し
 assert 32 "int main() { int a; a=foo(); return a; }"
+assert 32 "int main() { return foo(); }"
 assert 75 "int main() { int a; int b; int c; a=5; b=86; c=bar(a,b); return c; }"
+assert 75 "int main() { return bar(26,85); }"
 assert 125 "int main() { int a; int b; int c; int d; int e; int f; int g; a=30; b=28; c=56; d=83; e=127; f=204; g=baz(a,b,c,d,e,f); return g; }"
+assert 125 "int main() { return baz(32,587,65,79,0,4); }"
+assert 154 "int main() { int a; int b; a=154; b=foobar(a); return b; }"
+assert 28 "int main() { return foobar(28); }"
 
 # 関数定義
 assert 5 "int main() { return hoge(); } int hoge() { return 5; }"
+assert 5 "int main() { int a; a=hoge(); return a; } int hoge() { return 5; }"
 assert 62 "int main() { return hoge(62); } int hoge(int a) { return a; }"
-assert 6 "int main() { return hoge(1, 1, 1, 1, 1, 1); } int hoge(int a, int b, int c, int d, int e, int f) { return a+b+c+d+e+f; }"
+assert 137 "int main() { return hoge(62, 75); } int hoge(int a, int b) { return a+b; }"
+assert 21 "int main() { return hoge(1, 2, 3, 4, 5, 6); } int hoge(int a, int b, int c, int d, int e, int f) { return a+b+c+d+e+f; }"
 assert 8 "int main() { return hoge(5); } int hoge(int a) { if(a==0) return 1; else if(a==1) return 1; else return hoge(a-1)+hoge(a-2); }"
 
 # ポインタ
@@ -100,8 +111,9 @@ assert 15 "int main() { int a; int *b; int **c; b = &a; c = &b; **c = 15; return
 assert 16 "int main() { int a; int *b; int **c; int ***d; int ****e; int *****f; b = &a; c = &b; d = &c; e = &d; f = &e; *****f = 16; return a; }"
 
 # ポインタの加減算
-assert 17 "int main() { int *p; int *q; int *r; alloc4(&p, 17, 2, 19, 18); return *p; }"
-assert 18 "int main() { int *p; int *q; int *r; alloc4(&p, 17, 2, 19, 18); q = p + 3; r = q - 1; return *q; }"
+assert 17 "int main() { int *p; alloc4(&p, 17, 2, 19, 18); return *p; }"
+assert 2 "int main() { int *p; alloc4(&p, 17, 2, 19, 18); return *(p + 1); }"
+assert 18 "int main() { int *p; int *q;  alloc4(&p, 17, 2, 19, 18); q = p + 3; return *q; }"
 assert 19 "int main() { int *p; int *q; int *r; alloc4(&p, 17, 2, 19, 18); q = p + 3; r = q - 1; return *r; }"
 
 # sizeof演算子
@@ -109,5 +121,8 @@ assert 4 "int main() { return sizeof 1; }"
 assert 4 "int main() { int a; return sizeof a; }"
 assert 4 "int main() { int a; return sizeof (a + 1); }"
 assert 8 "int main() { int *a; return sizeof a; }"
+
+# 配列
+# assert 12 "int main() { int a[10]; return 12; }"
 
 echo OK

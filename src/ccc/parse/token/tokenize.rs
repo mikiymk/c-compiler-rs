@@ -12,7 +12,7 @@ pub fn tokenize(code: &str) -> Result<TokenList, CompileError> {
             ' ' | '\n' | '\r' | '\t' => {
                 cur += 1;
             }
-            '+' | '-' | '*' | '/' | '(' | ')' | ';' | '{' | '}' | ',' | '&' => {
+            '+' | '-' | '*' | '/' | '(' | ')' | ';' | '{' | '}' | ',' | '&' | '[' | ']' => {
                 vect.push(Token::new_reserved(codev[cur], cur));
                 cur += 1;
             }

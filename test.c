@@ -78,3 +78,9 @@ int test() {
     { int a; return sizeof (a + 1); }
     { int *a; return sizeof a; }
 }
+
+int test1() {
+    int *a;
+    int *b = *a;
+    return 0;
+}

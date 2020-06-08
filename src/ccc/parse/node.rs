@@ -53,6 +53,7 @@ pub enum StatementKind {
 pub enum VariableType {
     Int,
     Pointer(Box<VariableType>),
+    Array(Box<VariableType>, i64),
 }
 
 #[derive(Debug)]
@@ -181,7 +182,7 @@ impl Node {
                 UnaryKind::Address => Ok(Pointer(Box::new(expression.kind()?))),
                 UnaryKind::Deref => match expression.kind()? {
                     VariableType::Int => Err("無効な参照です。"),
-                    VariableType::Pointer(t) => Ok(*t),
+                    VariableType::Pointer(t) | VariableType::Array(t, _) => Ok(*t),
                 },
             },
             Node::LocalVariable(t, _) => Ok(t.clone()),
@@ -194,6 +195,7 @@ impl VariableType {
         match self {
             VariableType::Int => 4,
             VariableType::Pointer(_) => 8,
+            VariableType::Array(t, s) => t.size() * s,
         }
     }
 }
@@ -214,6 +216,7 @@ impl Clone for VariableType {
         match self {
             VariableType::Int => VariableType::Int,
             VariableType::Pointer(b) => VariableType::Pointer(Box::new(*b.clone())),
+            VariableType::Array(t, s) => VariableType::Array(Box::new(*t.clone()), *s),
         }
     }
 }

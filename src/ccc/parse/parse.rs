@@ -166,10 +166,7 @@ fn add(
 ) -> Result<Node, CompileError> {
     let mut node = mul(token, vars)?;
     let rate = match &node {
-        Node::LocalVariable(VariableType::Pointer(t), _) => match &**t {
-            VariableType::Int => 4,
-            VariableType::Pointer(_) => 8,
-        },
+        Node::LocalVariable(VariableType::Pointer(t), _) => t.size(),
         _ => 1,
     };
     loop {
@@ -295,10 +292,10 @@ fn identify(
                 args: vect,
             });
         }
-        let mut ofs = 8;
+        let mut ofs = 0;
         for (var, t, i) in &*vars {
             if var == &identify {
-                return Ok(Node::LocalVariable(t.clone(), ofs));
+                return Ok(Node::LocalVariable(t.clone(), ofs + i));
             }
             ofs += i;
         }
@@ -322,7 +319,7 @@ fn declaration(
     vars: &mut Vec<(String, VariableType, i64)>,
 ) -> Result<Node, CompileError> {
     let (t, s) = declaration_identify(token)?;
-    let mut ofs = 8;
+    let mut ofs = 0;
     for (var, _, i) in &*vars {
         if *var == s {
             return Err(CompileError::new(
@@ -333,14 +330,11 @@ fn declaration(
         }
         ofs += i;
     }
-    let size = match &t {
-        VariableType::Int => 8,
-        VariableType::Pointer(_) => 8,
-    };
+    let i = t.size();
 
-    vars.push((s, t.clone(), size));
+    vars.push((s, t.clone(), i));
 
-    Ok(Node::LocalVariable(t, ofs))
+    Ok(Node::LocalVariable(t, ofs + i))
 }
 
 fn declaration_identify(token: &mut TokenList) -> Result<(VariableType, String), CompileError> {
