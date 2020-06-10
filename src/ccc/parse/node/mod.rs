@@ -1,5 +1,6 @@
-#[derive(Debug)]
-pub enum NodeKind {
+mod debug;
+
+pub enum BinaryKind {
     Add,
     Subtract,
     Multiply,
@@ -8,7 +9,6 @@ pub enum NodeKind {
     Assign,
 }
 
-#[derive(Debug)]
 pub enum CompareKind {
     Equal,
     NotEqual,
@@ -16,13 +16,11 @@ pub enum CompareKind {
     LessEqual,
 }
 
-#[derive(Debug)]
 pub enum UnaryKind {
     Address,
     Deref,
 }
 
-#[derive(Debug)]
 pub enum StatementKind {
     Return(Box<Node>),
     If {
@@ -49,14 +47,12 @@ pub enum StatementKind {
     },
 }
 
-#[derive(Debug)]
 pub enum VariableType {
     Int,
     Pointer(Box<VariableType>),
     Array(Box<VariableType>, i64),
 }
 
-#[derive(Debug)]
 pub enum Node {
     Program(Vec<Node>),
     Function {
@@ -70,7 +66,7 @@ pub enum Node {
         args: Vec<Node>,
     },
     BinaryOperator {
-        kind: NodeKind,
+        kind: BinaryKind,
         left: Box<Node>,
         right: Box<Node>,
     },
@@ -83,7 +79,7 @@ pub enum Node {
 }
 
 impl Node {
-    pub fn new_binary(kind: NodeKind, left: Self, right: Self) -> Self {
+    pub fn new_binary(kind: BinaryKind, left: Self, right: Self) -> Self {
         Node::BinaryOperator {
             kind,
             left: Box::new(left),
@@ -93,7 +89,7 @@ impl Node {
 
     pub fn new_compare(kind: CompareKind, left: Self, right: Self) -> Self {
         Node::BinaryOperator {
-            kind: NodeKind::Compare(kind),
+            kind: BinaryKind::Compare(kind),
             left: Box::new(left),
             right: Box::new(right),
         }
@@ -158,19 +154,22 @@ impl Node {
         use VariableType::Pointer;
         match self {
             Node::Num(_) => Ok(Int),
+
             Node::Program(_) | Node::Function { .. } | Node::Statement(_) => {
                 Err("値ではありません。")
             }
+
             Node::FunctionCall { .. } => Ok(Int),
 
             Node::BinaryOperator { kind, left, right } => match kind {
-                NodeKind::Assign => left.kind(),
-                NodeKind::Compare(_) => Ok(Int),
+                BinaryKind::Assign => left.kind(),
+                BinaryKind::Compare(_) => Ok(Int),
                 _ => match left.kind()? {
                     Int => right.kind(),
                     k => Ok(k),
                 },
             },
+
             Node::UnaryOperator { kind, expression } => match kind {
                 UnaryKind::Address => Ok(Pointer(Box::new(expression.kind()?))),
                 UnaryKind::Deref => match expression.kind()? {
@@ -178,6 +177,7 @@ impl Node {
                     VariableType::Pointer(t) | VariableType::Array(t, _) => Ok(*t),
                 },
             },
+
             Node::LocalVariable(t, _) => Ok(t.clone()),
         }
     }
@@ -195,10 +195,11 @@ impl VariableType {
 
 impl PartialEq for VariableType {
     fn eq(&self, other: &Self) -> bool {
-        use VariableType::{Int, Pointer};
+        use VariableType::{Array, Int, Pointer};
         match (self, other) {
             (Int, Int) => true,
             (Pointer(s), Pointer(o)) => s == o,
+            (Array(ty, s), Array(pe, o)) => ty == pe && s == o,
             (_, _) => false,
         }
     }

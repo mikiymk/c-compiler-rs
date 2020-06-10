@@ -1,4 +1,4 @@
-use crate::ccc::parse::node::{CompareKind, Node, NodeKind, StatementKind, UnaryKind};
+use crate::ccc::parse::node::{BinaryKind, CompareKind, Node, StatementKind, UnaryKind};
 
 /*
 
@@ -60,7 +60,7 @@ fn gen(node: &Node, label: &mut Label) -> () {
         }
 
         Node::BinaryOperator {
-            kind: NodeKind::Assign,
+            kind: BinaryKind::Assign,
             left,
             right,
         } => {
@@ -101,14 +101,14 @@ fn gen(node: &Node, label: &mut Label) -> () {
                 _ => ("rax", "rdi"),
             };
             match kind {
-                NodeKind::Add => label.add(rax, rdi),
-                NodeKind::Subtract => label.sub(rax, rdi),
-                NodeKind::Multiply => label.imul(rax, rdi),
-                NodeKind::Divide => {
+                BinaryKind::Add => label.add(rax, rdi),
+                BinaryKind::Subtract => label.sub(rax, rdi),
+                BinaryKind::Multiply => label.imul(rax, rdi),
+                BinaryKind::Divide => {
                     label.cqo();
                     label.idiv(rdi);
                 }
-                NodeKind::Compare(cmp) => {
+                BinaryKind::Compare(cmp) => {
                     label.cmp(rax, rdi);
                     match cmp {
                         CompareKind::Equal => label.sete("al"),
@@ -118,7 +118,7 @@ fn gen(node: &Node, label: &mut Label) -> () {
                     }
                     label.movzx("rax", "al");
                 }
-                NodeKind::Assign => unreachable!(),
+                BinaryKind::Assign => unreachable!(),
             }
             label.push("rax");
             label.comment("binary end");

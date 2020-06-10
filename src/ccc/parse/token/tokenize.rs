@@ -12,6 +12,7 @@ pub fn tokenize(code: &str) -> Result<TokenList, CompileError> {
             ' ' | '\n' | '\r' | '\t' => {
                 cur += 1;
             }
+
             '/' => {
                 if codev[cur + 1] == '/' {
                     let mut c = cur + 2;
@@ -35,11 +36,13 @@ pub fn tokenize(code: &str) -> Result<TokenList, CompileError> {
                 vect.push(Token::new_reserved(codev[cur], cur));
                 cur += 1;
             }
+
             '0'..='9' => {
                 let (lo, c) = str_to_long(code, cur);
                 vect.push(Token::new_number(lo, cur));
                 cur = c;
             }
+
             '=' | '!' | '<' | '>' => {
                 if codev[cur + 1] == '=' {
                     vect.push(Token::new_reserved(
@@ -52,11 +55,13 @@ pub fn tokenize(code: &str) -> Result<TokenList, CompileError> {
                     cur += 1;
                 }
             }
+
             'a'..='z' | 'A'..='Z' => {
                 let (identify, c) = get_identify(code, cur);
                 vect.push(keyword_or_identify(identify, cur));
                 cur = c;
             }
+
             _ => {
                 return Err(CompileError::new("トークナイズ出来ません。", cur, code));
             }

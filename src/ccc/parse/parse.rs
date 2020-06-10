@@ -1,6 +1,6 @@
+use super::node::BinaryKind;
 use super::node::CompareKind;
 use super::node::Node;
-use super::node::NodeKind;
 use super::node::UnaryKind;
 use super::node::VariableType;
 use super::token::token::TokenList;
@@ -9,16 +9,13 @@ use crate::ccc::error::CompileError;
 pub fn program(token: &mut TokenList) -> Result<Node, CompileError> {
     let mut code = Vec::new();
     while !token.at_eof() {
-        let mut vars = Vec::new();
-        code.push(function(token, &mut vars)?);
+        code.push(function(token)?);
     }
     Ok(Node::Program(code))
 }
 
-fn function(
-    token: &mut TokenList,
-    vars: &mut Vec<(String, VariableType, i64)>,
-) -> Result<Node, CompileError> {
+fn function(token: &mut TokenList) -> Result<Node, CompileError> {
+    let mut vars = Vec::new();
     token.expect_reserved("int")?;
     if let Some(name) = token.expect_identify() {
         token.expect_reserved("(")?;
@@ -29,7 +26,7 @@ fn function(
                 token.expect_reserved(",")?;
             }
             token.expect_reserved("int")?;
-            args.push(declaration(token, vars)?);
+            args.push(declaration(token, &mut vars)?);
             i += 1;
             if i > 6 {
                 return Err(CompileError::new(
@@ -39,7 +36,7 @@ fn function(
                 ));
             }
         }
-        let stmt = statement(token, vars)?;
+        let stmt = statement(token, &mut vars)?;
         Ok(Node::new_function(name, args, stmt))
     } else {
         Err(CompileError::new(
@@ -115,7 +112,7 @@ fn assign(
     let node = equality(token, vars)?;
     if token.consume_reserved("=") {
         Ok(Node::new_binary(
-            NodeKind::Assign,
+            BinaryKind::Assign,
             node,
             assign(token, vars)?,
         ))
@@ -173,19 +170,19 @@ fn add(
         if token.consume_reserved("+") {
             let mul = mul(token, vars)?;
             let rated = if rate != 1 {
-                Node::new_binary(NodeKind::Multiply, mul, Node::Num(rate))
+                Node::new_binary(BinaryKind::Multiply, mul, Node::Num(rate))
             } else {
                 mul
             };
-            node = Node::new_binary(NodeKind::Add, node, rated);
+            node = Node::new_binary(BinaryKind::Add, node, rated);
         } else if token.consume_reserved("-") {
             let mul = mul(token, vars)?;
             let rated = if rate != 1 {
-                Node::new_binary(NodeKind::Multiply, mul, Node::Num(rate))
+                Node::new_binary(BinaryKind::Multiply, mul, Node::Num(rate))
             } else {
                 mul
             };
-            node = Node::new_binary(NodeKind::Subtract, node, rated);
+            node = Node::new_binary(BinaryKind::Subtract, node, rated);
         } else {
             return Ok(node);
         }
@@ -199,9 +196,9 @@ fn mul(
     let mut node = unary(token, vars)?;
     loop {
         if token.consume_reserved("*") {
-            node = Node::new_binary(NodeKind::Multiply, node, unary(token, vars)?);
+            node = Node::new_binary(BinaryKind::Multiply, node, unary(token, vars)?);
         } else if token.consume_reserved("/") {
-            node = Node::new_binary(NodeKind::Divide, node, unary(token, vars)?);
+            node = Node::new_binary(BinaryKind::Divide, node, unary(token, vars)?);
         } else {
             return Ok(node);
         }
@@ -216,7 +213,7 @@ fn unary(
         Ok(primary(token, vars)?)
     } else if token.consume_reserved("-") {
         Ok(Node::new_binary(
-            NodeKind::Subtract,
+            BinaryKind::Subtract,
             Node::Num(0),
             primary(token, vars)?,
         ))
