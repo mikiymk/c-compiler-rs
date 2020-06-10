@@ -166,16 +166,9 @@ impl Node {
             Node::BinaryOperator { kind, left, right } => match kind {
                 NodeKind::Assign => left.kind(),
                 NodeKind::Compare(_) => Ok(Int),
-                _ => match (&**left, &**right) {
-                    (Node::Num(_), r) => r.kind(),
-                    (l, Node::Num(_)) => l.kind(),
-                    (l, r) => {
-                        if l.kind()? == r.kind()? {
-                            l.kind()
-                        } else {
-                            Err("無効なオペランドです。")
-                        }
-                    }
+                _ => match left.kind()? {
+                    Int => right.kind(),
+                    k => Ok(k),
                 },
             },
             Node::UnaryOperator { kind, expression } => match kind {

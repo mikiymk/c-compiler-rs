@@ -12,7 +12,26 @@ pub fn tokenize(code: &str) -> Result<TokenList, CompileError> {
             ' ' | '\n' | '\r' | '\t' => {
                 cur += 1;
             }
-            '+' | '-' | '*' | '/' | '(' | ')' | ';' | '{' | '}' | ',' | '&' | '[' | ']' => {
+            '/' => {
+                if codev[cur + 1] == '/' {
+                    let mut c = cur + 2;
+                    while codev[c] != '\n' {
+                        c = c + 1;
+                    }
+                    cur = c;
+                } else if codev[cur + 1] == '*' {
+                    let mut c = cur + 3;
+                    while codev[c - 1] != '*' && codev[c] != '/' {
+                        c = c + 1;
+                    }
+                    cur = c;
+                } else {
+                    vect.push(Token::new_reserved(codev[cur], cur));
+                    cur += 1;
+                }
+            }
+
+            '+' | '-' | '*' | '(' | ')' | ';' | '{' | '}' | ',' | '&' | '[' | ']' => {
                 vect.push(Token::new_reserved(codev[cur], cur));
                 cur += 1;
             }

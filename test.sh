@@ -8,7 +8,7 @@ assert() {
     ./tmp
     actual="$?"
 
-    if [ "$actual" =  "$expected" ]; then
+    if [ "$actual" = "$expected" ]; then
         echo "$input => $actual"
     else
         echo "$input => $expected expected, but got $actual"
@@ -107,14 +107,16 @@ assert 8 "int main() { return hoge(5); } int hoge(int a) { if(a==0) return 1; el
 
 # ポインタ
 assert 14 "int main() { int a; int *b; b = &a; *b = 14; return a; }"
+assert 114 "int main() { int a; int *b; int *c; b = &a; c = b; *c = 114; return a; }"
 assert 15 "int main() { int a; int *b; int **c; b = &a; c = &b; **c = 15; return a; }"
 assert 16 "int main() { int a; int *b; int **c; int ***d; int ****e; int *****f; b = &a; c = &b; d = &c; e = &d; f = &e; *****f = 16; return a; }"
 
 # ポインタの加減算
 assert 17 "int main() { int *p; alloc4(&p, 17, 2, 19, 18); return *p; }"
 assert 2 "int main() { int *p; alloc4(&p, 17, 2, 19, 18); return *(p + 1); }"
-assert 18 "int main() { int *p; int *q;  alloc4(&p, 17, 2, 19, 18); q = p + 3; return *q; }"
+assert 18 "int main() { int *p; int *q; alloc4(&p, 17, 2, 19, 18); q = p + 3; return *q; }"
 assert 19 "int main() { int *p; int *q; int *r; alloc4(&p, 17, 2, 19, 18); q = p + 3; r = q - 1; return *r; }"
+assert 20 "int main() { int *p; int *q; alloc4(&p, 17, 2, 19, 18); q = p + 3; *(p + 3) = 20; return *q; }"
 
 # sizeof演算子
 assert 4 "int main() { return sizeof 1; }"
@@ -123,6 +125,28 @@ assert 4 "int main() { int a; return sizeof (a + 1); }"
 assert 8 "int main() { int *a; return sizeof a; }"
 
 # 配列
-# assert 12 "int main() { int a[10]; return 12; }"
+assert 12 "int main() { int a[10]; return 12; }"
+assert 25 "int main() { int a[10]; *a = 1; return 25; }"
+assert 87 "int main() { int a[10]; *a = 87; return *a; }"
+assert 50 "int main() { int a[10]; *(a + 1) = 11; return 50; }"
+assert 39 "int main() { int a[2]; *(a + 1) = 39; return *(a + 1); }"
+assert 71 "int main() { int a[10]; *a = 71; *(a + 1) = 89; return *a; }"
+assert 160 "int main() { int a[10]; *a = 71; *(a + 1) = 89; return *a + *(a + 1); }"
+assert 160 "int main() { int a[2]; *a = 71; *(a + 1) = 89; return *a + *(a + 1); }"
+assert 99 "int main() { int a[10]; int *p; *a = 99; p = a; return *p; }"
+assert 102 "int main() { int a[10]; int *p; *a = 99; *(a + 1) = 102; p = a; return *(p + 1); }"
+assert 99 "int main() { int a[1]; int *p; *a = 99; p = a; return *p; }"
+assert 99 "int main() { int a[1]; int *p; *a = 99; p = a; return *p; }"
+
+assert 3 "int main() {
+    int a[2];
+    *a = 1;
+    *(a + 1) = 2;
+    int *p;
+    p = a;
+    return *p + *(p + 1);  // → 3
+}"
+
+assert 40 "int main() { int a[10]; return sizeof a; }"
 
 echo OK

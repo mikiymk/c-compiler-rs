@@ -29,7 +29,7 @@ srcは変更されない
 
 */
 
-pub fn code_generate(node: &Node) {
+pub fn code_generate(node: &Node) -> () {
     let mut label = Label::new();
 
     println!(".intel_syntax noprefix");
@@ -38,10 +38,16 @@ pub fn code_generate(node: &Node) {
     gen(node, &mut label);
 }
 
-fn gen(node: &Node, label: &mut Label) {
+fn gen(node: &Node, label: &mut Label) -> () {
     match node {
         Node::Num(i) => {
             label.push(i);
+        }
+
+        Node::LocalVariable(super::parse::node::VariableType::Array(_, _), _) => {
+            label.comment("local var array start");
+            gen_local_variable(node, label);
+            label.comment("local var array end");
         }
 
         Node::LocalVariable(_, _) => {
@@ -66,15 +72,14 @@ fn gen(node: &Node, label: &mut Label) {
             label.comment("assign body");
             label.pop("rdi");
             label.pop("rax");
-            if let Ok(t) = left.kind() {
-                match t.size() {
-                    4 => {
-                        label.mov("[rax]", "edi");
-                    }
-                    _ => {
-                        label.mov("[rax]", "rdi");
-                    }
+            match left.kind() {
+                Ok(t) if t.size() == 4 => {
+                    label.mov("[rax]", "edi");
                 }
+                Ok(_) => {
+                    label.mov("[rax]", "rdi");
+                }
+                Err(e) => eprintln!("{}", e),
             }
             label.push("rdi");
             label.comment("assign end");
@@ -276,10 +281,7 @@ fn gen_local_variable(node: &Node, label: &mut Label) {
             kind: UnaryKind::Deref,
             expression,
         } => {
-            gen_local_variable(expression, label);
-            label.pop("rax");
-            label.mov("rax", "[rax]");
-            label.push("rax");
+            gen(expression, label);
         }
 
         _ => eprintln!("左辺値が代入可能ではありません。"),

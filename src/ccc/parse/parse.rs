@@ -165,8 +165,8 @@ fn add(
     vars: &mut Vec<(String, VariableType, i64)>,
 ) -> Result<Node, CompileError> {
     let mut node = mul(token, vars)?;
-    let rate = match &node {
-        Node::LocalVariable(VariableType::Pointer(t), _) => t.size(),
+    let rate = match node.kind() {
+        Ok(VariableType::Pointer(t)) | Ok(VariableType::Array(t, _)) => t.size(),
         _ => 1,
     };
     loop {
@@ -272,20 +272,13 @@ fn identify(
                 });
             }
             let mut vect = Vec::new();
-            let mut i = 0;
+            let mut needs_comma = false;
             while !token.consume_reserved(")") {
-                if i != 0 {
+                if needs_comma {
                     token.expect_reserved(",")?;
                 }
                 vect.push(expression(token, vars)?);
-                i += 1;
-                if i > 6 {
-                    return Err(CompileError::new(
-                        "関数の引数は6こ以下です。",
-                        token.position(),
-                        token.code(),
-                    ));
-                }
+                needs_comma = true;
             }
             return Ok(Node::FunctionCall {
                 name: identify,
@@ -330,11 +323,18 @@ fn declaration(
         }
         ofs += i;
     }
-    let i = t.size();
-
-    vars.push((s, t.clone(), i));
-
-    Ok(Node::LocalVariable(t, ofs + i))
+    if token.consume_reserved("[") {
+        let size = token.expect_num()?;
+        token.expect_reserved("]")?;
+        let byte_size = t.size() * size;
+        let ty = VariableType::Array(Box::new(t), size);
+        vars.push((s, ty.clone(), byte_size));
+        Ok(Node::LocalVariable(ty, ofs + byte_size))
+    } else {
+        let i = t.size();
+        vars.push((s, t.clone(), i));
+        Ok(Node::LocalVariable(t, ofs + i))
+    }
 }
 
 fn declaration_identify(token: &mut TokenList) -> Result<(VariableType, String), CompileError> {
