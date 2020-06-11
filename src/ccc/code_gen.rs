@@ -361,6 +361,10 @@ impl Label {
     {
         println!("# {}", src);
     }
+
+    /// push src
+    ///
+    /// 現在のRSP位置にsrcを書き込み、RSPを8下げる。
     fn push<T>(&mut self, src: T)
     where
         T: std::fmt::Display,
@@ -374,6 +378,9 @@ impl Label {
         self.push_count += 8;
     }
 
+    /// pop src
+    ///
+    /// 現在のRSP位置の64bitをsrcに読み込み、RSPを8上げる。
     fn pop<T>(&mut self, src: T)
     where
         T: std::fmt::Display,

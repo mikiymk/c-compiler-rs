@@ -59,10 +59,9 @@ impl TokenList {
         }
     }
 
-    fn get(&mut self) -> Option<&TokenKind> {
+    fn get(&self) -> Option<&TokenKind> {
         if !self.at_eof() {
             let itm = &self.list[0];
-            self.pos = itm.position;
             Some(&itm.kind)
         } else {
             None
@@ -83,12 +82,19 @@ impl TokenList {
         self.list.len() == 0
     }
 
-    pub fn code(&self) -> &str {
-        &self.code
+    pub fn error<S>(&self, err: S) -> CompileError
+    where
+        S: std::string::ToString,
+    {
+        CompileError::new(err, self.pos, &self.code)
     }
 
-    pub fn position(&self) -> usize {
-        self.pos
+    pub fn next_reserved(&mut self, stri: &str) -> bool {
+        matches!( self.get() ,Some(TokenKind::RESERVED(ref s)) if s == stri )
+    }
+
+    pub fn next_identify(&mut self) -> bool {
+        matches!(self.get(), Some(TokenKind::IDENTIFY(_)))
     }
 
     pub fn consume_reserved(&mut self, stri: &str) -> bool {
@@ -101,29 +107,17 @@ impl TokenList {
         }
     }
 
-    pub fn next_identify(&mut self) -> bool {
-        matches!(self.get(), Some(TokenKind::IDENTIFY(_)))
-    }
-
     pub fn expect_num(&mut self) -> Result<i64, CompileError> {
         match self.pop() {
             Some(TokenKind::NUMBER(i)) => Ok(i),
-            _ => Err(CompileError::new(
-                "数ではありません。",
-                self.pos,
-                &self.code,
-            )),
+            _ => Err(self.error("数ではありません。")),
         }
     }
 
     pub fn expect_reserved(&mut self, t: &str) -> Result<String, CompileError> {
         match self.pop() {
             Some(TokenKind::RESERVED(s)) if s == t => Ok(s),
-            _ => Err(CompileError::new(
-                &format!("{} がありません。", t),
-                self.pos,
-                &self.code,
-            )),
+            _ => Err(self.error(format!("{} がありません。", t))),
         }
     }
 

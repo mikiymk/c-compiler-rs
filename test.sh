@@ -148,5 +148,7 @@ assert 3 "int main() {
 }"
 
 assert 40 "int main() { int a[10]; return sizeof a; }"
+assert 80 "int main() { int *a[10]; return sizeof a; }"
+assert 84 "int main() { int a[21]; return sizeof a; }"
 
 echo OK

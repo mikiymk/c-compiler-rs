@@ -1,24 +1,28 @@
 mod debug;
 
-pub enum BinaryKind {
-    Add,
-    Subtract,
-    Multiply,
-    Divide,
-    Compare(CompareKind),
-    Assign,
-}
-
-pub enum CompareKind {
-    Equal,
-    NotEqual,
-    LessThan,
-    LessEqual,
-}
-
-pub enum UnaryKind {
-    Address,
-    Deref,
+pub enum Node {
+    Program(Vec<Node>),
+    Function {
+        name: String,
+        args: Vec<Node>,
+        statement: Box<Node>,
+    },
+    Statement(StatementKind),
+    FunctionCall {
+        name: String,
+        args: Vec<Node>,
+    },
+    BinaryOperator {
+        kind: BinaryKind,
+        left: Box<Node>,
+        right: Box<Node>,
+    },
+    UnaryOperator {
+        kind: UnaryKind,
+        expression: Box<Node>,
+    },
+    Num(i64),
+    LocalVariable(VariableType, i64),
 }
 
 pub enum StatementKind {
@@ -47,35 +51,31 @@ pub enum StatementKind {
     },
 }
 
+pub enum BinaryKind {
+    Add,
+    Subtract,
+    Multiply,
+    Divide,
+    Compare(CompareKind),
+    Assign,
+}
+
+pub enum UnaryKind {
+    Address,
+    Deref,
+}
+
+pub enum CompareKind {
+    Equal,
+    NotEqual,
+    LessThan,
+    LessEqual,
+}
+
 pub enum VariableType {
     Int,
     Pointer(Box<VariableType>),
     Array(Box<VariableType>, i64),
-}
-
-pub enum Node {
-    Program(Vec<Node>),
-    Function {
-        name: String,
-        args: Vec<Node>,
-        statement: Box<Node>,
-    },
-    Statement(StatementKind),
-    FunctionCall {
-        name: String,
-        args: Vec<Node>,
-    },
-    BinaryOperator {
-        kind: BinaryKind,
-        left: Box<Node>,
-        right: Box<Node>,
-    },
-    UnaryOperator {
-        kind: UnaryKind,
-        expression: Box<Node>,
-    },
-    Num(i64),
-    LocalVariable(VariableType, i64),
 }
 
 impl Node {

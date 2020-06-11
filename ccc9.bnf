@@ -39,8 +39,9 @@ unary := "+"? primary
 
 primary := num
     | identify ("(" (expression ("," expression)*)? ")")?
-    | "(" expression ")";
+    | "(" expression ")"
+    | primary "[" expression "]";
 
-declaration := "int" "*"* identify;
+declaration := "int" "*"* identify ("[" num "]")?;
 
 identify := char+;
