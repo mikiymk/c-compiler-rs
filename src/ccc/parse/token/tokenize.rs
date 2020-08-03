@@ -13,24 +13,26 @@ pub fn tokenize(code: &str) -> Result<TokenList, CompileError> {
                 cur += 1;
             }
 
-            '/' => {
-                if codev[cur + 1] == '/' {
+            '/' => match codev[cur + 1] {
+                '/' => {
                     let mut c = cur + 2;
                     while codev[c] != '\n' {
                         c = c + 1;
                     }
                     cur = c;
-                } else if codev[cur + 1] == '*' {
+                }
+                '*' => {
                     let mut c = cur + 3;
                     while codev[c - 1] != '*' && codev[c] != '/' {
                         c = c + 1;
                     }
                     cur = c;
-                } else {
+                }
+                _ => {
                     vect.push(Token::new_reserved(codev[cur], cur));
                     cur += 1;
                 }
-            }
+            },
 
             '+' | '-' | '*' | '(' | ')' | ';' | '{' | '}' | ',' | '&' | '[' | ']' => {
                 vect.push(Token::new_reserved(codev[cur], cur));
@@ -62,9 +64,7 @@ pub fn tokenize(code: &str) -> Result<TokenList, CompileError> {
                 cur = c;
             }
 
-            _ => {
-                return Err(CompileError::new("トークナイズ出来ません。", cur, code));
-            }
+            _ => return Err(CompileError::new("トークナイズ出来ません。", cur, code)),
         }
     }
     Ok(TokenList::new(code, vect))

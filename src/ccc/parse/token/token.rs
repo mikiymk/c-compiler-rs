@@ -42,7 +42,7 @@ impl Token {
     }
 }
 
-/// Array of tokens
+/// トークンの配列
 #[derive(Debug)]
 pub struct TokenList {
     pos: usize,
