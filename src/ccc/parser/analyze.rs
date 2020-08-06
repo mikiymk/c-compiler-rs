@@ -69,12 +69,27 @@ fn statement(token: &mut TokenList, vars: &mut VariableList) -> ParseResult<Stat
         Ok(node::new_while(cond, stmt))
     } else if token.consume_reserved("for") {
         token.expect_reserved("(")?;
-        let init = expression(token, vars)?;
-        token.expect_reserved(";")?;
-        let cond = expression(token, vars)?;
-        token.expect_reserved(";")?;
-        let iter = expression(token, vars)?;
-        token.expect_reserved(")")?;
+        let init = if !token.consume_reserved(";") {
+            let init = expression(token, vars)?;
+            token.expect_reserved(";")?;
+            init
+        } else {
+            Expression::Num(1)
+        };
+        let cond = if !token.consume_reserved(";") {
+            let cond = expression(token, vars)?;
+            token.expect_reserved(";")?;
+            cond
+        } else {
+            Expression::Num(1)
+        };
+        let iter = if !token.consume_reserved(")") {
+            let iter = expression(token, vars)?;
+            token.expect_reserved(")")?;
+            iter
+        } else {
+            Expression::Num(1)
+        };
         let stmt = statement(token, vars)?;
         Ok(node::new_for(init, cond, iter, stmt))
     } else if token.consume_reserved("return") {

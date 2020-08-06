@@ -1,4 +1,7 @@
 #!/bin/bash
+
+# プログラム文が期待する戻り値を返すことを確かめる関数。
+# 期待する戻り値でない場合、シェルスクリプトを終了する。
 assert() {
     expected="$1"
     input="$2"
@@ -10,6 +13,7 @@ assert() {
 
     if [ "$actual" = "$expected" ]; then
         echo "$input => $actual"
+        echo
     else
         echo "$input => $expected expected, but got $actual"
         exit 1
@@ -82,10 +86,12 @@ assert 41 "int main() { int a; a=0; if(a) { return 51; } else { return 41; } ret
 # while文
 assert 38 "int main() { int tkg; tkg=10; while(tkg) tkg=tkg-1; return 38+tkg; }"
 assert 9 "int main() { int tkg; tkg=10; while(tkg) { tkg=tkg-1; return tkg; } return 38+tkg; }"
+assert 32 "int main() { int tkg; int gms; tkg=10; gms=2; while(tkg>6) { tkg=tkg-1; gms=gms*2; } return gms; }"
 
 # for文
 assert 57 "int main() { int s; int i; s=2; for(i=0; i<=10; i=i+1) s=s+i; return s; }"
 assert 123 "int main() { int s; int i; int i2; s=93; for(i=0; i<=10; i=i+1) { for(i2=0; i2<=i; i2=i2+1){ if(i*i2>s) s=s+i+i2+10; } } return s; }"
+assert 15 "int main() { for(;;) { return 15; } return 20; }"
 
 # 関数呼び出し
 assert 32 "int main() { int a; a=foo(); return a; }"
@@ -129,6 +135,7 @@ assert 12 "int main() { int a[10]; return 12; }"
 assert 25 "int main() { int a[10]; *a = 1; return 25; }"
 assert 87 "int main() { int a[10]; *a = 87; return *a; }"
 assert 50 "int main() { int a[10]; *(a + 1) = 11; return 50; }"
+assert 98 "int main() { int a[1]; *a = 98; return *a; }"
 assert 39 "int main() { int a[2]; *(a + 1) = 39; return *(a + 1); }"
 assert 71 "int main() { int a[10]; *a = 71; *(a + 1) = 89; return *a; }"
 assert 160 "int main() { int a[10]; *a = 71; *(a + 1) = 89; return *a + *(a + 1); }"
