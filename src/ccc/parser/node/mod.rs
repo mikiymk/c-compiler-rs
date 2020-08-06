@@ -1,54 +1,71 @@
 mod debug;
 
-pub enum Node {
-    Program(Vec<Node>),
-    Function {
-        name: String,
-        args: Vec<Node>,
-        statement: Box<Node>,
+pub struct Program {
+    codes: Vec<Function>,
+}
+
+pub struct Function {
+    name: String,
+    arguments: Vec<Variable>,
+    statements: Vec<Statement>,
+}
+
+pub enum Statement {
+    Declaration(Variable),
+    Expression(Expression),
+    Return(Expression),
+    If {
+        condition: Expression,
+        true_statement: Box<Statement>,
     },
-    Statement(StatementKind),
+    IfElse {
+        condition: Expression,
+        true_statement: Box<Statement>,
+        false_statement: Box<Statement>,
+    },
+    While {
+        condition: Expression,
+        statement: Box<Statement>,
+    },
+    For {
+        init: Expression,
+        condition: Expression,
+        iteration: Expression,
+        statement: Box<Statement>,
+    },
+    Block {
+        statements: Vec<Statement>,
+    },
+}
+
+pub enum Expression {
     FunctionCall {
         name: String,
-        args: Vec<Node>,
+        args: Vec<Expression>,
     },
     BinaryOperator {
         kind: BinaryKind,
-        left: Box<Node>,
-        right: Box<Node>,
+        left: Box<Expression>,
+        right: Box<Expression>,
     },
     UnaryOperator {
         kind: UnaryKind,
-        expression: Box<Node>,
+        expression: Box<Expression>,
     },
     Num(i64),
-    LocalVariable(VariableType, i64),
+    LocalVariable(Variable),
 }
 
-pub enum StatementKind {
-    Return(Box<Node>),
-    If {
-        condition: Box<Node>,
-        t_statement: Box<Node>,
-    },
-    IfElse {
-        condition: Box<Node>,
-        t_statement: Box<Node>,
-        f_statement: Box<Node>,
-    },
-    While {
-        condition: Box<Node>,
-        statement: Box<Node>,
-    },
-    For {
-        init: Box<Node>,
-        condition: Box<Node>,
-        iteration: Box<Node>,
-        statement: Box<Node>,
-    },
-    Block {
-        statements: Vec<Node>,
-    },
+#[derive(Clone)]
+pub struct Variable {
+    var_type: VariableType,
+    name: String,
+    offset: i64,
+}
+
+pub enum UnaryKind {
+    Address,
+    Deref,
 }
 
 pub enum BinaryKind {
@@ -58,11 +75,6 @@ pub enum BinaryKind {
     Divide,
     Compare(CompareKind),
     Assign,
-}
-
-pub enum UnaryKind {
-    Address,
-    Deref,
 }
 
 pub enum CompareKind {
@@ -78,90 +90,35 @@ pub enum VariableType {
     Array(Box<VariableType>, i64),
 }
 
-impl Node {
-    pub fn new_binary(kind: BinaryKind, left: Self, right: Self) -> Self {
-        Node::BinaryOperator {
-            kind,
-            left: Box::new(left),
-            right: Box::new(right),
-        }
+impl Program {
+    pub fn codes(&self) -> &Vec<Function> {
+        &self.codes
+    }
+}
+
+impl Function {
+    pub fn name(&self) -> &String {
+        &self.name
     }
 
-    pub fn new_compare(kind: CompareKind, left: Self, right: Self) -> Self {
-        Node::BinaryOperator {
-            kind: BinaryKind::Compare(kind),
-            left: Box::new(left),
-            right: Box::new(right),
-        }
+    pub fn arguments(&self) -> &Vec<Variable> {
+        &self.arguments
     }
 
-    pub fn new_return(expr: Self) -> Self {
-        Node::Statement(StatementKind::Return(Box::new(expr)))
+    pub fn statements(&self) -> &Vec<Statement> {
+        &self.statements
     }
+}
 
-    pub fn new_if(condition: Self, t_statement: Self) -> Self {
-        Node::Statement(StatementKind::If {
-            condition: Box::new(condition),
-            t_statement: Box::new(t_statement),
-        })
-    }
-
-    pub fn new_if_else(condition: Self, t_statement: Self, f_statement: Self) -> Self {
-        Node::Statement(StatementKind::IfElse {
-            condition: Box::new(condition),
-            t_statement: Box::new(t_statement),
-            f_statement: Box::new(f_statement),
-        })
-    }
-
-    pub fn new_while(condition: Self, statement: Self) -> Self {
-        Node::Statement(StatementKind::While {
-            condition: Box::new(condition),
-            statement: Box::new(statement),
-        })
-    }
-
-    pub fn new_for(init: Self, condition: Self, iteration: Self, statement: Self) -> Self {
-        Node::Statement(StatementKind::For {
-            init: Box::new(init),
-            condition: Box::new(condition),
-            iteration: Box::new(iteration),
-            statement: Box::new(statement),
-        })
-    }
-
-    pub fn new_block(vect: Vec<Self>) -> Self {
-        Node::Statement(StatementKind::Block { statements: vect })
-    }
-
-    pub fn new_function(name: String, args: Vec<Self>, statement: Self) -> Self {
-        Node::Function {
-            name,
-            args,
-            statement: Box::new(statement),
-        }
-    }
-
-    pub fn new_unary(kind: UnaryKind, expression: Self) -> Self {
-        Node::UnaryOperator {
-            kind,
-            expression: Box::new(expression),
-        }
-    }
-
+impl Expression {
     pub fn kind(&self) -> Result<VariableType, &'static str> {
-        use VariableType::Int;
-        use VariableType::Pointer;
+        use Expression::{BinaryOperator, FunctionCall, Num, UnaryOperator};
+        use VariableType::{Int, Pointer};
         match self {
-            Node::Num(_) => Ok(Int),
+            Num(_) | FunctionCall { .. } => Ok(Int),
+            Expression::LocalVariable(Variable { var_type, .. }) => Ok(var_type.clone()),
 
-            Node::Program(_) | Node::Function { .. } | Node::Statement(_) => {
-                Err("値ではありません。")
-            }
-
-            Node::FunctionCall { .. } => Ok(Int),
-
-            Node::BinaryOperator { kind, left, right } => match kind {
+            BinaryOperator { kind, left, right } => match kind {
                 BinaryKind::Assign => left.kind(),
                 BinaryKind::Compare(_) => Ok(Int),
                 _ => match left.kind()? {
@@ -170,25 +127,34 @@ impl Node {
                 },
             },
 
-            Node::UnaryOperator { kind, expression } => match kind {
+            UnaryOperator { kind, expression } => match kind {
                 UnaryKind::Address => Ok(Pointer(Box::new(expression.kind()?))),
                 UnaryKind::Deref => match expression.kind()? {
-                    VariableType::Int => Err("無効な参照です。"),
                     VariableType::Pointer(t) | VariableType::Array(t, _) => Ok(*t),
+                    VariableType::Int => Err("無効な参照です。"),
                 },
             },
-
-            Node::LocalVariable(t, _) => Ok(t.clone()),
         }
+    }
+}
+
+impl Variable {
+    pub fn var_type(&self) -> &VariableType {
+        &self.var_type
+    }
+
+    pub fn offset(&self) -> i64 {
+        self.offset
     }
 }
 
 impl VariableType {
     pub fn size(&self) -> i64 {
+        use VariableType::{Array, Int, Pointer};
         match self {
-            VariableType::Int => 4,
-            VariableType::Pointer(_) => 8,
-            VariableType::Array(t, s) => t.size() * s,
+            Int => 4,
+            Pointer(_) => 8,
+            Array(ref_type, size) => ref_type.size() * size,
         }
     }
 }
@@ -198,7 +164,7 @@ impl PartialEq for VariableType {
         use VariableType::{Array, Int, Pointer};
         match (self, other) {
             (Int, Int) => true,
-            (Pointer(s), Pointer(o)) => s == o,
+            (Pointer(ty), Pointer(pe)) => ty == pe,
             (Array(ty, s), Array(pe, o)) => ty == pe && s == o,
             (_, _) => false,
         }
@@ -207,10 +173,106 @@ impl PartialEq for VariableType {
 
 impl Clone for VariableType {
     fn clone(&self) -> Self {
+        use VariableType::{Array, Int, Pointer};
         match self {
-            VariableType::Int => VariableType::Int,
-            VariableType::Pointer(b) => VariableType::Pointer(Box::new(*b.clone())),
-            VariableType::Array(t, s) => VariableType::Array(Box::new(*t.clone()), *s),
+            Int => Int,
+            Pointer(b) => Pointer(Box::new(*b.clone())),
+            Array(t, s) => Array(Box::new(*t.clone()), *s),
         }
+    }
+}
+
+pub fn new_program(codes: Vec<Function>) -> Program {
+    Program { codes }
+}
+
+pub fn new_binary(kind: BinaryKind, left: Expression, right: Expression) -> Expression {
+    Expression::BinaryOperator {
+        kind,
+        left: Box::new(left),
+        right: Box::new(right),
+    }
+}
+
+pub fn new_compare(kind: CompareKind, left: Expression, right: Expression) -> Expression {
+    Expression::BinaryOperator {
+        kind: BinaryKind::Compare(kind),
+        left: Box::new(left),
+        right: Box::new(right),
+    }
+}
+
+pub fn new_return(expression: Expression) -> Statement {
+    Statement::Return(expression)
+}
+
+pub fn new_if(condition: Expression, true_statement: Statement) -> Statement {
+    Statement::If {
+        condition,
+        true_statement: Box::new(true_statement),
+    }
+}
+
+pub fn new_if_else(
+    condition: Expression,
+    true_statement: Statement,
+    false_statement: Statement,
+) -> Statement {
+    Statement::IfElse {
+        condition,
+        true_statement: Box::new(true_statement),
+        false_statement: Box::new(false_statement),
+    }
+}
+
+pub fn new_while(condition: Expression, statement: Statement) -> Statement {
+    Statement::While {
+        condition,
+        statement: Box::new(statement),
+    }
+}
+
+pub fn new_for(
+    init: Expression,
+    condition: Expression,
+    iteration: Expression,
+    statement: Statement,
+) -> Statement {
+    Statement::For {
+        init,
+        condition,
+        iteration,
+        statement: Box::new(statement),
+    }
+}
+
+pub fn new_block(statements: Vec<Statement>) -> Statement {
+    Statement::Block { statements }
+}
+
+pub fn new_function(
+    name: String,
+    arguments: Vec<Variable>,
+    statements: Vec<Statement>,
+) -> Function {
+    Function {
+        name,
+        arguments,
+        statements,
+    }
+}
+
+pub fn new_unary(kind: UnaryKind, expression: Expression) -> Expression {
+    Expression::UnaryOperator {
+        kind,
+        expression: Box::new(expression),
+    }
+}
+
+pub fn new_variable(var_type: VariableType, name: String, offset: i64) -> Variable {
+    Variable {
+        var_type,
+        name,
+        offset,
     }
 }

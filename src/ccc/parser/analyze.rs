@@ -1,21 +1,24 @@
 use crate::ccc::{
     error::CompileError,
     lexer::node::TokenList,
-    parser::node::{BinaryKind, CompareKind, Node, UnaryKind, VariableType},
+    parser::node::{
+        self, BinaryKind, CompareKind, Expression, Function, Program, Statement, UnaryKind,
+        Variable, VariableType,
+    },
 };
 
-type ParseResult = Result<Node, CompileError>;
+type ParseResult<T> = Result<T, CompileError>;
 type VariableList = Vec<(String, VariableType, i64)>;
 
-pub fn program(token: &mut TokenList) -> ParseResult {
-    let mut code = Vec::new();
+pub fn program(token: &mut TokenList) -> ParseResult<Program> {
+    let mut codes = Vec::new();
     while !token.at_eof() {
-        code.push(function(token)?);
+        codes.push(function(token)?);
     }
-    Ok(Node::Program(code))
+    Ok(node::new_program(codes))
 }
 
-fn function(token: &mut TokenList) -> ParseResult {
+fn function(token: &mut TokenList) -> ParseResult<Function> {
     let mut vars = Vec::new();
     token.expect_reserved("int")?;
     if let Some(name) = token.expect_identify() {
@@ -29,36 +32,41 @@ fn function(token: &mut TokenList) -> ParseResult {
             args.push(declaration(token, &mut vars)?);
             multi = true;
         }
-        let stmt = statement(token, &mut vars)?;
-        Ok(Node::new_function(name, args, stmt))
+
+        token.expect_reserved("{")?;
+        let mut stmt = Vec::new();
+        while !token.consume_reserved("}") {
+            stmt.push(statement(token, &mut vars)?);
+        }
+        Ok(node::new_function(name, args, stmt))
     } else {
         Err(token.error("関数を定義してください。"))
     }
 }
 
-fn statement(token: &mut TokenList, vars: &mut VariableList) -> ParseResult {
+fn statement(token: &mut TokenList, vars: &mut VariableList) -> ParseResult<Statement> {
     if token.consume_reserved("{") {
         let mut vect = Vec::new();
         while !token.consume_reserved("}") {
             vect.push(statement(token, vars)?);
         }
-        Ok(Node::new_block(vect))
+        Ok(node::new_block(vect))
     } else if token.consume_reserved("if") {
         token.expect_reserved("(")?;
         let cond = expression(token, vars)?;
         token.expect_reserved(")")?;
         let stmt = statement(token, vars)?;
         if token.consume_reserved("else") {
-            Ok(Node::new_if_else(cond, stmt, statement(token, vars)?))
+            Ok(node::new_if_else(cond, stmt, statement(token, vars)?))
         } else {
-            Ok(Node::new_if(cond, stmt))
+            Ok(node::new_if(cond, stmt))
         }
     } else if token.consume_reserved("while") {
         token.expect_reserved("(")?;
         let cond = expression(token, vars)?;
         token.expect_reserved(")")?;
         let stmt = statement(token, vars)?;
-        Ok(Node::new_while(cond, stmt))
+        Ok(node::new_while(cond, stmt))
     } else if token.consume_reserved("for") {
         token.expect_reserved("(")?;
         let init = expression(token, vars)?;
@@ -68,30 +76,30 @@ fn statement(token: &mut TokenList, vars: &mut VariableList) -> ParseResult {
         let iter = expression(token, vars)?;
         token.expect_reserved(")")?;
         let stmt = statement(token, vars)?;
-        Ok(Node::new_for(init, cond, iter, stmt))
+        Ok(node::new_for(init, cond, iter, stmt))
     } else if token.consume_reserved("return") {
-        let node = Node::new_return(expression(token, vars)?);
+        let node = node::new_return(expression(token, vars)?);
         token.expect_reserved(";")?;
         Ok(node)
     } else if token.next_reserved("int") {
         let node = declaration(token, vars)?;
         token.expect_reserved(";")?;
-        Ok(node)
+        Ok(Statement::Declaration(node))
     } else {
         let node = expression(token, vars)?;
         token.expect_reserved(";")?;
-        Ok(node)
+        Ok(Statement::Expression(node))
     }
 }
 
-fn expression(token: &mut TokenList, vars: &mut VariableList) -> ParseResult {
+fn expression(token: &mut TokenList, vars: &mut VariableList) -> ParseResult<Expression> {
     assign(token, vars)
 }
 
-fn assign(token: &mut TokenList, vars: &mut VariableList) -> ParseResult {
+fn assign(token: &mut TokenList, vars: &mut VariableList) -> ParseResult<Expression> {
     let node = equality(token, vars)?;
     if token.consume_reserved("=") {
-        Ok(Node::new_binary(
+        Ok(node::new_binary(
             BinaryKind::Assign,
             node,
             assign(token, vars)?,
@@ -101,37 +109,37 @@ fn assign(token: &mut TokenList, vars: &mut VariableList) -> ParseResult {
     }
 }
 
-fn equality(token: &mut TokenList, vars: &mut VariableList) -> ParseResult {
+fn equality(token: &mut TokenList, vars: &mut VariableList) -> ParseResult<Expression> {
     let mut node = relational(token, vars)?;
     loop {
         if token.consume_reserved("==") {
-            node = Node::new_compare(CompareKind::Equal, node, relational(token, vars)?);
+            node = node::new_compare(CompareKind::Equal, node, relational(token, vars)?);
         } else if token.consume_reserved("!=") {
-            node = Node::new_compare(CompareKind::NotEqual, node, relational(token, vars)?);
+            node = node::new_compare(CompareKind::NotEqual, node, relational(token, vars)?);
         } else {
             return Ok(node);
         }
     }
 }
 
-fn relational(token: &mut TokenList, vars: &mut VariableList) -> ParseResult {
+fn relational(token: &mut TokenList, vars: &mut VariableList) -> ParseResult<Expression> {
     let mut node = add(token, vars)?;
     loop {
         if token.consume_reserved("<") {
-            node = Node::new_compare(CompareKind::LessThan, node, add(token, vars)?);
+            node = node::new_compare(CompareKind::LessThan, node, add(token, vars)?);
         } else if token.consume_reserved("<=") {
-            node = Node::new_compare(CompareKind::LessEqual, node, add(token, vars)?);
+            node = node::new_compare(CompareKind::LessEqual, node, add(token, vars)?);
         } else if token.consume_reserved(">") {
-            node = Node::new_compare(CompareKind::LessThan, add(token, vars)?, node);
+            node = node::new_compare(CompareKind::LessThan, add(token, vars)?, node);
         } else if token.consume_reserved(">=") {
-            node = Node::new_compare(CompareKind::LessEqual, add(token, vars)?, node);
+            node = node::new_compare(CompareKind::LessEqual, add(token, vars)?, node);
         } else {
             return Ok(node);
         }
     }
 }
 
-fn add(token: &mut TokenList, vars: &mut VariableList) -> ParseResult {
+fn add(token: &mut TokenList, vars: &mut VariableList) -> ParseResult<Expression> {
     let mut node = mul(token, vars)?;
     let rate = match node.kind() {
         Ok(VariableType::Pointer(t)) | Ok(VariableType::Array(t, _)) => t.size(),
@@ -141,54 +149,54 @@ fn add(token: &mut TokenList, vars: &mut VariableList) -> ParseResult {
         if token.consume_reserved("+") {
             let mul = mul(token, vars)?;
             let rated = if rate != 1 {
-                Node::new_binary(BinaryKind::Multiply, mul, Node::Num(rate))
+                node::new_binary(BinaryKind::Multiply, mul, Expression::Num(rate))
             } else {
                 mul
             };
-            node = Node::new_binary(BinaryKind::Add, node, rated);
+            node = node::new_binary(BinaryKind::Add, node, rated);
         } else if token.consume_reserved("-") {
             let mul = mul(token, vars)?;
             let rated = if rate != 1 {
-                Node::new_binary(BinaryKind::Multiply, mul, Node::Num(rate))
+                node::new_binary(BinaryKind::Multiply, mul, Expression::Num(rate))
             } else {
                 mul
             };
-            node = Node::new_binary(BinaryKind::Subtract, node, rated);
+            node = node::new_binary(BinaryKind::Subtract, node, rated);
         } else {
             return Ok(node);
         }
     }
 }
 
-fn mul(token: &mut TokenList, vars: &mut VariableList) -> ParseResult {
+fn mul(token: &mut TokenList, vars: &mut VariableList) -> ParseResult<Expression> {
     let mut node = unary(token, vars)?;
     loop {
         if token.consume_reserved("*") {
-            node = Node::new_binary(BinaryKind::Multiply, node, unary(token, vars)?);
+            node = node::new_binary(BinaryKind::Multiply, node, unary(token, vars)?);
         } else if token.consume_reserved("/") {
-            node = Node::new_binary(BinaryKind::Divide, node, unary(token, vars)?);
+            node = node::new_binary(BinaryKind::Divide, node, unary(token, vars)?);
         } else {
             return Ok(node);
         }
     }
 }
 
-fn unary(token: &mut TokenList, vars: &mut VariableList) -> ParseResult {
+fn unary(token: &mut TokenList, vars: &mut VariableList) -> ParseResult<Expression> {
     if token.consume_reserved("+") {
         Ok(primary(token, vars)?)
     } else if token.consume_reserved("-") {
-        Ok(Node::new_binary(
+        Ok(node::new_binary(
             BinaryKind::Subtract,
-            Node::Num(0),
+            Expression::Num(0),
             primary(token, vars)?,
         ))
     } else if token.consume_reserved("*") {
-        Ok(Node::new_unary(UnaryKind::Deref, unary(token, vars)?))
+        Ok(node::new_unary(UnaryKind::Deref, unary(token, vars)?))
     } else if token.consume_reserved("&") {
-        Ok(Node::new_unary(UnaryKind::Address, unary(token, vars)?))
+        Ok(node::new_unary(UnaryKind::Address, unary(token, vars)?))
     } else if token.consume_reserved("sizeof") {
         match unary(token, vars)?.kind() {
-            Ok(t) => Ok(Node::Num(t.size())),
+            Ok(t) => Ok(Expression::Num(t.size())),
             Err(s) => Err(token.error(s)),
         }
     } else {
@@ -196,7 +204,7 @@ fn unary(token: &mut TokenList, vars: &mut VariableList) -> ParseResult {
     }
 }
 
-fn primary(token: &mut TokenList, vars: &mut VariableList) -> ParseResult {
+fn primary(token: &mut TokenList, vars: &mut VariableList) -> ParseResult<Expression> {
     if token.consume_reserved("(") {
         let node = expression(token, vars)?;
         token.expect_reserved(")")?;
@@ -208,11 +216,11 @@ fn primary(token: &mut TokenList, vars: &mut VariableList) -> ParseResult {
     }
 }
 
-fn number(token: &mut TokenList, _vars: &mut VariableList) -> ParseResult {
-    Ok(Node::Num(token.expect_num()?))
+fn number(token: &mut TokenList, _vars: &mut VariableList) -> ParseResult<Expression> {
+    Ok(Expression::Num(token.expect_num()?))
 }
 
-fn identify(token: &mut TokenList, vars: &mut VariableList) -> ParseResult {
+fn identify(token: &mut TokenList, vars: &mut VariableList) -> ParseResult<Expression> {
     if let Some(name) = token.expect_identify() {
         if token.consume_reserved("(") {
             let mut args = Vec::new();
@@ -224,14 +232,18 @@ fn identify(token: &mut TokenList, vars: &mut VariableList) -> ParseResult {
                 args.push(expression(token, vars)?);
                 multi = true;
             }
-            return Ok(Node::FunctionCall { name, args });
+            return Ok(Expression::FunctionCall { name, args });
         }
 
-        let mut ofs = 0;
+        let mut offset = 0;
         for (var, t, i) in &*vars {
-            ofs += i;
+            offset += i;
             if var == &name {
-                return Ok(Node::LocalVariable(t.clone(), ofs));
+                return Ok(Expression::LocalVariable(node::new_variable(
+                    t.clone(),
+                    name,
+                    offset,
+                )));
             }
         }
 
@@ -241,7 +253,7 @@ fn identify(token: &mut TokenList, vars: &mut VariableList) -> ParseResult {
     }
 }
 
-fn declaration(token: &mut TokenList, vars: &mut VariableList) -> ParseResult {
+fn declaration(token: &mut TokenList, vars: &mut VariableList) -> ParseResult<Variable> {
     token.expect_reserved("int")?;
     let (t, s) = declaration_identify(token)?;
     let mut ofs = 0;
@@ -256,12 +268,12 @@ fn declaration(token: &mut TokenList, vars: &mut VariableList) -> ParseResult {
         token.expect_reserved("]")?;
         let byte_size = t.size() * size;
         let ty = VariableType::Array(Box::new(t), size);
-        vars.push((s, ty.clone(), byte_size));
-        Ok(Node::LocalVariable(ty, ofs + byte_size))
+        vars.push((s.clone(), ty.clone(), byte_size));
+        Ok(node::new_variable(ty, s, ofs + byte_size))
     } else {
         let i = t.size();
-        vars.push((s, t.clone(), i));
-        Ok(Node::LocalVariable(t, ofs + i))
+        vars.push((s.clone(), t.clone(), i));
+        Ok(node::new_variable(t, s, ofs + i))
     }
 }
 

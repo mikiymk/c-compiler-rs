@@ -1,5 +1,6 @@
 use crate::ccc::parser::node::{
-    BinaryKind, CompareKind, Node, StatementKind, UnaryKind, VariableType::Array,
+    BinaryKind, CompareKind, Expression, Function, Program, Statement, UnaryKind, Variable,
+    VariableType::Array,
 };
 
 mod register;
@@ -33,36 +34,145 @@ srcは変更されない
 
 */
 
-pub fn code_generate(node: &Node) -> () {
+pub fn code_generate(program: &Program) -> () {
     println!(".intel_syntax noprefix");
     println!(".global main");
 
-    gen(node, &mut Label::new());
+    generate_program(program, &mut Label::new());
 }
 
-fn gen(node: &Node, label: &mut Label) -> () {
-    use Node::{
-        BinaryOperator, Function, FunctionCall, LocalVariable, Num, Program, Statement,
-        UnaryOperator,
-    };
+fn generate_program(program: &Program, label: &mut Label) -> () {
+    for code in program.codes() {
+        generate_function(code, label);
+    }
+}
+
+fn generate_function(function: &Function, label: &mut Label) -> () {
+    label.f_label(function.name());
+    label.push("rbp");
+    label.mov("rbp", "rsp");
+    label.sub("rsp", 208);
+
+    let arguments = function.arguments();
+    for i in 0..arguments.len() {
+        gen_parameter(&arguments[i], label, i);
+    }
+
+    let statements = function.statements();
+    for statement in statements {
+        generate_statement(statement, label);
+    }
+
+    label.pop("rax");
+    label.mov("rsp", "rbp");
+    label.pop("rbp");
+    label.ret();
+}
+
+fn generate_statement(node: &Statement, label: &mut Label) -> () {
+    use Statement::{Block, Declaration, Expression, For, If, IfElse, Return, While};
+    match node {
+        Return(expr) => {
+            generate_expression(expr, label);
+            label.pop("rax");
+            label.mov("rsp", "rbp");
+            label.pop("rbp");
+            label.ret();
+        }
+
+        Declaration(var) => generate_variable(var, label),
+        Expression(expr) => generate_expression(expr, label),
+
+        If {
+            condition,
+            true_statement,
+        } => {
+            let l = label.get();
+            gen_condition(&*condition, label);
+            label.je(l);
+            generate_statement(&*true_statement, label);
+            label.l_label(l);
+        }
+
+        IfElse {
+            condition,
+            true_statement,
+            false_statement,
+        } => {
+            let lelse = label.get();
+            let lend = label.get();
+            gen_condition(&*condition, label);
+            label.je(lelse);
+            generate_statement(&*true_statement, label);
+            label.jmp(lend);
+            label.l_label(lelse);
+            generate_statement(&*false_statement, label);
+            label.l_label(lend);
+        }
+
+        While {
+            condition,
+            statement,
+        } => {
+            let lbegin = label.get();
+            let lend = label.get();
+            label.l_label(lbegin);
+            gen_condition(&*condition, label);
+            label.je(lend);
+            generate_statement(&*statement, label);
+            label.jmp(lbegin);
+            label.l_label(lend);
+        }
+
+        For {
+            init,
+            condition,
+            iteration,
+            statement,
+        } => {
+            let lbegin = label.get();
+            let lend = label.get();
+            generate_expression(&*init, label);
+            label.l_label(lbegin);
+            gen_condition(&*condition, label);
+            label.je(lend);
+            generate_statement(&*statement, label);
+            generate_expression(&*iteration, label);
+            label.jmp(lbegin);
+            label.l_label(lend);
+        }
+
+        Block { statements } => {
+            for statement in statements {
+                generate_statement(statement, label);
+                label.pop("rax")
+            }
+        }
+    }
+}
+
+fn generate_expression(node: &Expression, label: &mut Label) -> () {
+    use Expression::{BinaryOperator, FunctionCall, LocalVariable, Num, UnaryOperator};
     match node {
         Num(i) => label.push(i),
 
-        LocalVariable(Array(_, _), _) => gen_local_variable(node, label),
+        LocalVariable(variable) => match variable.var_type() {
+            Array(_, _) => gen_local_variable(node, label),
 
-        LocalVariable(_, _) => {
-            gen_local_variable(node, label);
-            label.pop("rax");
-            label.mov("rax", "[rax]");
-            label.push("rax");
-        }
+            _ => {
+                gen_local_variable(node, label);
+                label.pop("rax");
+                label.mov("rax", "[rax]");
+                label.push("rax");
+            }
+        },
 
         BinaryOperator { kind, left, right } => generate_binary(label, kind, left, right),
         UnaryOperator { kind, expression } => generate_unary(label, kind, expression),
 
         FunctionCall { name, args } => {
             for arg in args {
-                gen(arg, label);
+                generate_expression(arg, label);
             }
             for i in (0..args.len()).rev() {
                 label.pop(register::ARGS_REGISTER[i][0]);
@@ -70,44 +180,15 @@ fn gen(node: &Node, label: &mut Label) -> () {
             label.call(name);
             label.push("rax");
         }
-
-        Statement(kind) => generate_statement(label, kind),
-        Program(vec) => {
-            for node in vec {
-                gen(node, &mut Label::new());
-            }
-        }
-
-        Function {
-            name,
-            args,
-            statement,
-        } => {
-            label.f_label(name);
-            label.push("rbp");
-            label.mov("rbp", "rsp");
-            label.sub("rsp", 208);
-
-            for i in 0..args.len() {
-                gen_parameter(&args[i], label, i);
-            }
-
-            gen(statement, label);
-
-            label.pop("rax");
-            label.mov("rsp", "rbp");
-            label.pop("rbp");
-            label.ret();
-        }
     }
 }
 
-fn generate_binary(label: &mut Label, kind: &BinaryKind, left: &Node, right: &Node) {
+fn generate_binary(label: &mut Label, kind: &BinaryKind, left: &Expression, right: &Expression) {
     use BinaryKind::{Add, Assign, Compare, Divide, Multiply, Subtract};
     match kind {
         Assign => {
             gen_local_variable(left, label);
-            gen(right, label);
+            generate_expression(right, label);
 
             label.pop("rdi");
             label.pop("rax");
@@ -120,8 +201,8 @@ fn generate_binary(label: &mut Label, kind: &BinaryKind, left: &Node, right: &No
         }
 
         kind => {
-            gen(left, label);
-            gen(right, label);
+            generate_expression(left, label);
+            generate_expression(right, label);
 
             label.pop("rdi");
             label.pop("rax");
@@ -157,11 +238,11 @@ fn generate_binary(label: &mut Label, kind: &BinaryKind, left: &Node, right: &No
     }
 }
 
-fn generate_unary(label: &mut Label, kind: &UnaryKind, expression: &Node) {
+fn generate_unary(label: &mut Label, kind: &UnaryKind, expression: &Expression) {
     match kind {
         UnaryKind::Address => gen_local_variable(expression, label),
         UnaryKind::Deref => {
-            gen(expression, label);
+            generate_expression(expression, label);
             label.pop("rax");
             label.mov("rax", "[rax]");
             label.push("rax");
@@ -169,108 +250,29 @@ fn generate_unary(label: &mut Label, kind: &UnaryKind, expression: &Node) {
     }
 }
 
-fn generate_statement(label: &mut Label, kind: &StatementKind) {
-    use StatementKind::{Block, For, If, IfElse, Return, While};
-    match kind {
-        Return(expr) => {
-            label.comment("return expression");
-            gen(&*expr, label);
-            label.comment("return body");
-            label.pop("rax");
-            label.mov("rsp", "rbp");
-            label.pop("rbp");
-            label.ret();
-        }
-
-        If {
-            condition,
-            t_statement,
-        } => {
-            let l = label.get();
-            gen_condition(&*condition, label);
-            label.je(l);
-            gen(&*t_statement, label);
-            label.l_label(l);
-        }
-
-        IfElse {
-            condition,
-            t_statement,
-            f_statement,
-        } => {
-            let lelse = label.get();
-            let lend = label.get();
-            gen_condition(&*condition, label);
-            label.je(lelse);
-            gen(&*t_statement, label);
-            label.jmp(lend);
-            label.l_label(lelse);
-            gen(&*f_statement, label);
-            label.l_label(lend);
-        }
-
-        While {
-            condition,
-            statement,
-        } => {
-            let lbegin = label.get();
-            let lend = label.get();
-            label.l_label(lbegin);
-            gen_condition(&*condition, label);
-            label.je(lend);
-            gen(&*statement, label);
-            label.jmp(lbegin);
-            label.l_label(lend);
-        }
-
-        For {
-            init,
-            condition,
-            iteration,
-            statement,
-        } => {
-            let lbegin = label.get();
-            let lend = label.get();
-            gen(&*init, label);
-            label.l_label(lbegin);
-            gen_condition(&*condition, label);
-            label.je(lend);
-            gen(&*statement, label);
-            gen(&*iteration, label);
-            label.jmp(lbegin);
-            label.l_label(lend);
-        }
-
-        Block { statements } => {
-            for statement in statements {
-                gen(statement, label);
-                label.pop("rax")
-            }
-        }
-    }
-}
-
-fn gen_local_variable(node: &Node, label: &mut Label) {
+fn gen_local_variable(node: &Expression, label: &mut Label) {
     match node {
-        Node::LocalVariable(_, offset) => {
-            label.mov("rax", "rbp");
-            label.sub("rax", offset);
-            label.push("rax");
-        }
+        Expression::LocalVariable(var) => generate_variable(var, label),
 
-        Node::UnaryOperator {
+        Expression::UnaryOperator {
             kind: UnaryKind::Deref,
             expression,
         } => {
-            gen(expression, label);
+            generate_expression(expression, label);
         }
 
         _ => eprintln!("左辺値が代入可能ではありません。"),
     }
 }
 
-fn gen_condition(condition: &Node, label: &mut Label) {
-    gen(&*condition, label);
+fn generate_variable(node: &Variable, label: &mut Label) {
+    label.mov("rax", "rbp");
+    label.sub("rax", node.offset());
+    label.push("rax");
+}
+
+fn gen_condition(condition: &Expression, label: &mut Label) {
+    generate_expression(&*condition, label);
     label.pop("rax");
     let s = match condition.kind() {
         Ok(k) if k.size() == 4 => "eax",
@@ -279,15 +281,13 @@ fn gen_condition(condition: &Node, label: &mut Label) {
     label.cmp(s, "0");
 }
 
-fn gen_parameter(node: &Node, label: &mut Label, parameter_index: usize) {
-    gen_local_variable(&*node, label);
+fn gen_parameter(node: &Variable, label: &mut Label, parameter_index: usize) {
+    generate_variable(node, label);
     label.pop("rax");
 
-    if let Ok(t) = node.kind() {
-        match t.size() {
-            4 => label.mov("[rax]", register::ARGS_REGISTER[parameter_index][1]),
-            _ => label.mov("[rax]", register::ARGS_REGISTER[parameter_index][0]),
-        }
+    match node.var_type().size() {
+        4 => label.mov("[rax]", register::ARGS_REGISTER[parameter_index][1]),
+        _ => label.mov("[rax]", register::ARGS_REGISTER[parameter_index][0]),
     }
 }
 
