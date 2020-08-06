@@ -90,7 +90,7 @@ impl TokenList {
     }
 
     pub fn next_reserved(&mut self, stri: &str) -> bool {
-        matches!( self.get() ,Some(TokenKind::RESERVED(ref s)) if s == stri )
+        matches!(self.get(),Some(TokenKind::RESERVED(ref s)) if s == stri )
     }
 
     pub fn next_identify(&mut self) -> bool {

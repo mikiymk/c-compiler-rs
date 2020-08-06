@@ -1,5 +1,6 @@
-use super::parse::node::VariableType::Array;
-use super::parse::node::{BinaryKind, CompareKind, Node, StatementKind, UnaryKind};
+use crate::ccc::parser::node::{
+    BinaryKind, CompareKind, Node, StatementKind, UnaryKind, VariableType::Array,
+};
 
 mod register;
 

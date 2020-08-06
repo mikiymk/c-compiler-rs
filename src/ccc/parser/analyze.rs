@@ -1,6 +1,8 @@
-use super::super::error::CompileError;
-use super::node::{BinaryKind, CompareKind, Node, UnaryKind, VariableType};
-use super::token::token::TokenList;
+use crate::ccc::{
+    error::CompileError,
+    lexer::node::TokenList,
+    parser::node::{BinaryKind, CompareKind, Node, UnaryKind, VariableType},
+};
 
 type ParseResult = Result<Node, CompileError>;
 type VariableList = Vec<(String, VariableType, i64)>;

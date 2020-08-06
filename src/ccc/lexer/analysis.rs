@@ -1,7 +1,9 @@
-use super::token::{Token, TokenList};
-use crate::ccc::error::CompileError;
+use crate::ccc::{
+    error::CompileError,
+    lexer::node::{Token, TokenList},
+};
 
-pub fn tokenize(code: &str) -> Result<TokenList, CompileError> {
+pub fn analyze(code: &str) -> Result<TokenList, CompileError> {
     let mut vect = Vec::new();
     let codev = code.chars().collect::<Vec<char>>();
     let len = codev.len();
@@ -59,8 +61,13 @@ pub fn tokenize(code: &str) -> Result<TokenList, CompileError> {
             }
 
             'a'..='z' | 'A'..='Z' => {
-                let (identify, c) = get_identify(code, cur);
-                vect.push(keyword_or_identify(identify, cur));
+                let (identify, c) = get_identify(code, &codev, cur);
+                vect.push(match identify {
+                    "return" | "if" | "else" | "while" | "for" | "int" | "sizeof" => {
+                        Token::new_reserved(identify, cur)
+                    }
+                    _ => Token::new_identify(identify, cur),
+                });
                 cur = c;
             }
 
@@ -78,8 +85,7 @@ fn str_to_long(code: &str, cursor: usize) -> (i64, usize) {
     (code[cursor..len].parse().unwrap(), len)
 }
 
-fn get_identify(code: &str, cursor: usize) -> (&str, usize) {
-    let codev = code.chars().collect::<Vec<char>>();
+fn get_identify<'a>(code: &'a str, codev: &Vec<char>, cursor: usize) -> (&'a str, usize) {
     let len = codev.len();
     for now in cursor + 1..len {
         match codev[now] {
@@ -88,13 +94,4 @@ fn get_identify(code: &str, cursor: usize) -> (&str, usize) {
         }
     }
     (&code[cursor..len], len)
-}
-
-fn keyword_or_identify(name: &str, cur: usize) -> Token {
-    match name {
-        "return" | "if" | "else" | "while" | "for" | "int" | "sizeof" => {
-            Token::new_reserved(name, cur)
-        }
-        _ => Token::new_identify(name, cur),
-    }
 }
