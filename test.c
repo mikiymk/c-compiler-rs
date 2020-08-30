@@ -1,9 +1,12 @@
 #include "func.h"
 int main() {
-    int a[10];
-    int *p;
-    *a = 99;
-    *(a + 1) = 102;
-    p = a;
-    return *(p + 1);
+    int a;
+    int p[10];
+    int *q;
+    int *r;
+    p[5] = 15;
+    a = 5;
+    q = p + a;
+    r = q + p;
+    return *q;
 }

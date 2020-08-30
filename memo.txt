@@ -1,0 +1,9 @@
+
+コンパイルのながれ
+
+プログラム文字列の入力
+プログラム文字列をトークン列に変形(字句解析)(lexical analysis)
+トークン列を構文木に変形(構文解析)(syntax analysis)
+構文木の意味が正しいか確認(意味解析)(semantics analysis) // まだできてない
+構文木プログラムを最適化(code optimization)
+最終コードを出力(code generation)
